@@ -1,0 +1,399 @@
+import type { ClothingItem, FormalityId, OccasionId, Outfit } from "@/data/types";
+import {
+  FORMALITIES,
+  getFormality,
+  getOccasion,
+  normalizeFormalityId,
+  normalizeOccasionId,
+  OCCASIONS,
+} from "@/data/types";
+import { normalizeFormality } from "@/data/catalog";
+
+function available(items: ClothingItem[]) {
+  return items.filter((i) => i.status === "available");
+}
+
+function byCategory(items: ClothingItem[], category: ClothingItem["category"]) {
+  return available(items).filter((i) => i.category === category);
+}
+
+function inferFormality(item: ClothingItem): FormalityId | "todos" {
+  const stored = normalizeFormality(item.formality);
+  if (stored !== "todos") return stored;
+
+  const blob = `${item.style} ${item.subcategory} ${item.occasion}`.toLowerCase();
+  if (/formal|clássico|classico|elegante|oxford|salto|blazer|alfaiat/i.test(blob)) return "formal";
+  if (/business|corporativ|minimalista|casual elegante|camisa|calça|calca/i.test(blob)) {
+    return "casual_arrumado";
+  }
+  if (/jeans|tênis|tenis|street|esport|casual|boho|cropped/i.test(blob)) return "casual";
+  return "todos";
+}
+
+function scoreItem(
+  item: ClothingItem,
+  occasionId: OccasionId,
+  formalityId: FormalityId,
+  temp?: number
+): number {
+  let score = item.uses * 0.05;
+  const occ = getOccasion(occasionId);
+  const label = occ.label.toLowerCase();
+  const itemOcc = item.occasion.toLowerCase();
+
+  if (itemOcc === "todos" || itemOcc.includes(label)) {
+    score += 6;
+  }
+  if (occasionId === "trabalho" && /trabalho|todos/i.test(item.occasion)) score += 4;
+  if (occasionId === "faculdade" && /faculdade|casual|todos|social/i.test(item.occasion)) score += 4;
+  if (occasionId === "praia" && /praia|lazer|casual|todos/i.test(item.occasion)) score += 5;
+  if (occasionId === "academia" && /academia|esporte|casual|todos/i.test(item.occasion)) score += 6;
+  if (occasionId === "festa" && /festa|social|evento|todos/i.test(item.occasion)) score += 5;
+  if (occasionId === "evento" && /evento|social|todos/i.test(item.occasion)) score += 5;
+  if (occasionId === "casa" && /casa|casual|todos/i.test(item.occasion)) score += 4;
+  if (occasionId === "encontro" && /encontro|social|todos/i.test(item.occasion)) score += 4;
+
+  const itemFormality = inferFormality(item);
+  if (itemFormality === "todos" || itemFormality === formalityId) {
+    score += 10;
+  } else if (
+    (formalityId === "casual_arrumado" &&
+      (itemFormality === "formal" || itemFormality === "casual")) ||
+    (formalityId === "formal" && itemFormality === "casual_arrumado")
+  ) {
+    score += 2;
+  } else {
+    score -= 8;
+  }
+
+  if (formalityId === "formal") {
+    if (/clássico|elegante|business|minimalista/i.test(item.style)) score += 6;
+    if (/blazer|camisa|calça|oxford|salto/i.test(`${item.subcategory} ${item.style}`)) score += 4;
+    if (/tênis|jeans|street|cropped|bermuda|shorts/i.test(`${item.subcategory} ${item.style}`)) {
+      score -= 7;
+    }
+  } else if (formalityId === "casual_arrumado") {
+    if (/business|casual elegante|minimalista|clássico/i.test(item.style)) score += 7;
+    if (/blazer|camisa|calça|mule|loafer|trench/i.test(item.subcategory)) score += 4;
+    if (/jeans/i.test(item.subcategory)) score += 1;
+    if (/streetwear|boho|regata/i.test(`${item.style} ${item.subcategory}`)) score -= 4;
+  } else {
+    if (/casual|street|esport|romant|boho/i.test(item.style)) score += 6;
+    if (/tênis|jeans|camiseta|shorts|rasteira/i.test(item.subcategory)) score += 4;
+    if (/blazer|oxford|alfaiat/i.test(`${item.subcategory} ${item.style}`)) score -= 3;
+  }
+
+  if (occasionId === "praia" && /verão/i.test(item.season)) score += 4;
+  if (occasionId === "academia" && /legging|tênis|esport/i.test(`${item.subcategory} ${item.style}`)) {
+    score += 8;
+  }
+  if (temp !== undefined) {
+    if (temp < 18 && item.category === "casacos") score += 4;
+    if (temp > 26 && /verão/i.test(item.season)) score += 3;
+    if (temp > 26 && item.category === "casacos") score -= 3;
+  }
+
+  return score;
+}
+
+function rankItems(
+  items: ClothingItem[],
+  occasionId: OccasionId,
+  formalityId: FormalityId,
+  temp?: number,
+  excludeIds: string[] = []
+): ClothingItem[] {
+  const excluded = new Set(excludeIds);
+  const preferred = items.filter((i) => !excluded.has(i.id));
+  const pool = preferred.length ? preferred : items;
+  return [...pool].sort(
+    (a, b) =>
+      scoreItem(b, occasionId, formalityId, temp) - scoreItem(a, occasionId, formalityId, temp)
+  );
+}
+
+function pickVariant(
+  items: ClothingItem[],
+  occasionId: OccasionId,
+  formalityId: FormalityId,
+  temp: number | undefined,
+  variant: number,
+  excludeIds: string[] = []
+): ClothingItem | undefined {
+  const ranked = rankItems(items, occasionId, formalityId, temp, excludeIds);
+  if (!ranked.length) return undefined;
+  return ranked[Math.abs(variant) % ranked.length];
+}
+
+export interface OutfitBuildOptions {
+  variant?: number;
+  excludeIds?: string[];
+  formality?: FormalityId;
+}
+
+export interface OutfitResult {
+  outfit: Outfit | null;
+  message: string;
+  missing: string[];
+}
+
+export function buildOutfit(
+  wardrobe: ClothingItem[],
+  occasionId: OccasionId,
+  temp?: number,
+  options: OutfitBuildOptions = {}
+): OutfitResult {
+  const occasion = normalizeOccasionId(occasionId);
+  const formality = normalizeFormalityId(
+    options.formality ?? getOccasion(occasion).defaultFormality
+  );
+  const variant = options.variant ?? 0;
+  const excludeIds = options.excludeIds ?? [];
+
+  const tops = byCategory(wardrobe, "superiores");
+  const bottoms = byCategory(wardrobe, "inferiores");
+  const dresses = [...byCategory(wardrobe, "vestidos"), ...byCategory(wardrobe, "macacoes")];
+  const shoes = byCategory(wardrobe, "sapatos");
+  const bags = byCategory(wardrobe, "bolsas");
+  const outerwear = byCategory(wardrobe, "casacos");
+
+  const dressFriendly =
+    occasion === "evento" || occasion === "encontro" || occasion === "festa" || occasion === "praia";
+  const useDress =
+    dresses.length > 0 &&
+    formality !== "formal" &&
+    (dressFriendly ? variant % 3 !== 1 : variant % 4 === 3);
+
+  const outfit: Outfit = {};
+  const missing: string[] = [];
+
+  if (useDress) {
+    outfit.dress = pickVariant(dresses, occasion, formality, temp, variant, excludeIds);
+  } else {
+    outfit.top = pickVariant(tops, occasion, formality, temp, variant, excludeIds);
+    outfit.bottom = pickVariant(bottoms, occasion, formality, temp, variant + 1, excludeIds);
+    if (!outfit.top) missing.push("peça superior");
+    if (!outfit.bottom) missing.push("calça ou saia");
+  }
+
+  outfit.shoe = pickVariant(shoes, occasion, formality, temp, variant + 2, excludeIds);
+  outfit.bag = pickVariant(bags, occasion, formality, temp, variant + 3, excludeIds);
+  if (
+    (temp !== undefined && temp < 20) ||
+    formality === "formal" ||
+    (formality === "casual_arrumado" && variant % 2 === 0)
+  ) {
+    outfit.outerwear = pickVariant(outerwear, occasion, formality, temp, variant + 4, excludeIds);
+  }
+
+  if (!outfit.shoe) missing.push("sapato");
+
+  if (missing.length && !outfit.dress && !outfit.top) {
+    return {
+      outfit: null,
+      message: `Não consegui montar um look completo. Faltam: ${missing.join(", ")}. Adicione peças no guarda-roupa.`,
+      missing,
+    };
+  }
+
+  const occ = getOccasion(occasion);
+  const form = getFormality(formality);
+  const pieces = [outfit.dress, outfit.top, outfit.bottom, outfit.shoe, outfit.bag, outfit.outerwear].filter(
+    Boolean
+  );
+  return {
+    outfit,
+    message: `Para ${occ.label} em formalidade ${form.label.toLowerCase()}${
+      temp !== undefined ? `, ${temp}°` : ""
+    }: combinação com ${pieces.length} peças do seu guarda-roupa.`,
+    missing,
+  };
+}
+
+export type OutfitSlot = "top" | "bottom" | "dress" | "shoe" | "bag" | "outerwear";
+
+const SLOT_CATEGORY: Record<OutfitSlot, ClothingItem["category"][]> = {
+  top: ["superiores"],
+  bottom: ["inferiores"],
+  dress: ["vestidos", "macacoes"],
+  shoe: ["sapatos"],
+  bag: ["bolsas"],
+  outerwear: ["casacos"],
+};
+
+export function alternativesForSlot(
+  wardrobe: ClothingItem[],
+  slot: OutfitSlot,
+  occasionId: OccasionId,
+  formalityId: FormalityId,
+  temp?: number,
+  currentId?: string
+): ClothingItem[] {
+  const cats = new Set(SLOT_CATEGORY[slot]);
+  const pool = available(wardrobe).filter((i) => cats.has(i.category) && i.id !== currentId);
+  return rankItems(pool, normalizeOccasionId(occasionId), formalityId, temp).slice(0, 8);
+}
+
+export function swapOutfitSlot(
+  outfit: Outfit,
+  slot: OutfitSlot,
+  next: ClothingItem
+): Outfit {
+  const copy: Outfit = { ...outfit, [slot]: next };
+  if (slot === "dress") {
+    delete copy.top;
+    delete copy.bottom;
+  }
+  if (slot === "top" || slot === "bottom") {
+    delete copy.dress;
+  }
+  return copy;
+}
+
+export function detectOccasionFromText(text: string): OccasionId {
+  const lower = text.toLowerCase();
+  for (const occ of OCCASIONS) {
+    if (occ.keywords.some((k) => lower.includes(k))) return occ.id;
+  }
+  return "casa";
+}
+
+export function detectFormalityFromText(text: string): FormalityId | undefined {
+  const lower = text.toLowerCase();
+  if (/formal|casamento|alfaiat|gravata/i.test(lower)) return "formal";
+  if (
+    /casual arrumado|arrumado|business casual|semi.?formal|não tão formal|nao tao formal|corporativ/i.test(
+      lower
+    )
+  ) {
+    return "casual_arrumado";
+  }
+  if (/informal|descontra|casual|jeans|confort/i.test(lower)) return "casual";
+  return undefined;
+}
+
+export function outfitPieces(outfit: Outfit): { label: string; item: ClothingItem }[] {
+  const rows: { label: string; item: ClothingItem }[] = [];
+  if (outfit.dress) {
+    rows.push({
+      label: outfit.dress.category === "macacoes" ? "Macacão" : "Vestido",
+      item: outfit.dress,
+    });
+  }
+  if (outfit.top) rows.push({ label: "Superior", item: outfit.top });
+  if (outfit.bottom) rows.push({ label: "Inferior", item: outfit.bottom });
+  if (outfit.outerwear) rows.push({ label: "Casaco", item: outfit.outerwear });
+  if (outfit.shoe) rows.push({ label: "Sapato", item: outfit.shoe });
+  if (outfit.bag) rows.push({ label: "Bolsa", item: outfit.bag });
+  return rows;
+}
+
+export function outfitPieceIds(outfit: Outfit): string[] {
+  return outfitPieces(outfit).map((p) => p.item.id);
+}
+
+export function slotLabel(slot: OutfitSlot): string {
+  const map: Record<OutfitSlot, string> = {
+    top: "Superior",
+    bottom: "Inferior",
+    dress: "Vestido",
+    shoe: "Sapato",
+    bag: "Bolsa",
+    outerwear: "Casaco",
+  };
+  return map[slot];
+}
+
+export function countCombinations(wardrobe: ClothingItem[]): number {
+  const a = available(wardrobe);
+  const tops = a.filter((i) => i.category === "superiores").length;
+  const bottoms = a.filter((i) => i.category === "inferiores").length;
+  const dresses = a.filter((i) => i.category === "vestidos" || i.category === "macacoes").length;
+  const shoes = Math.max(1, a.filter((i) => i.category === "sapatos").length);
+  return tops * bottoms * shoes + dresses * shoes;
+}
+
+export interface WardrobeGap {
+  id: string;
+  label: string;
+  reason: string;
+  have: number;
+  need: number;
+  categoryHint: ClothingItem["category"];
+  subcategoryHint: string;
+  formalityHint: FormalityId | "todos";
+  impactPct: number;
+}
+
+export function wardrobeGaps(wardrobe: ClothingItem[]): WardrobeGap[] {
+  const a = available(wardrobe);
+  const count = (pred: (i: ClothingItem) => boolean) => a.filter(pred).length;
+  const gaps: WardrobeGap[] = [
+    {
+      id: "blazers",
+      label: "Blazer estruturado",
+      reason: "Fecha looks de trabalho e eventos com poucas peças",
+      have: count((i) => /blazer/i.test(i.subcategory)),
+      need: 2,
+      categoryHint: "casacos",
+      subcategoryHint: "Blazer",
+      formalityHint: "casual_arrumado",
+      impactPct: 28,
+    },
+    {
+      id: "formal-shoes",
+      label: "Sapato formal",
+      reason: "Falta base para formalidade alta e eventos",
+      have: count(
+        (i) =>
+          i.category === "sapatos" &&
+          /salto|clássico|formal|oxford|mule|loafer/i.test(`${i.subcategory} ${i.style}`)
+      ),
+      need: 3,
+      categoryHint: "sapatos",
+      subcategoryHint: "Salto / Oxford",
+      formalityHint: "formal",
+      impactPct: 22,
+    },
+    {
+      id: "neutral-tops",
+      label: "Superior neutro",
+      reason: "Bases neutras multiplicam combinações do closet",
+      have: count(
+        (i) =>
+          i.category === "superiores" &&
+          /branco|preto|bege|nude|off|creme|cinza/i.test(i.color)
+      ),
+      need: 4,
+      categoryHint: "superiores",
+      subcategoryHint: "Camisa / Blusa",
+      formalityHint: "casual_arrumado",
+      impactPct: 31,
+    },
+    {
+      id: "bottoms",
+      label: "Calça ou saia versátil",
+      reason: "Poucos inferiores limitam looks para trabalho e faculdade",
+      have: count((i) => i.category === "inferiores"),
+      need: 4,
+      categoryHint: "inferiores",
+      subcategoryHint: "Calça / Saia",
+      formalityHint: "casual_arrumado",
+      impactPct: 25,
+    },
+    {
+      id: "outerwear",
+      label: "Casaco leve",
+      reason: "Útil em dias frescos e looks casual arrumado",
+      have: count((i) => i.category === "casacos"),
+      need: 2,
+      categoryHint: "casacos",
+      subcategoryHint: "Trench / Cardigan",
+      formalityHint: "casual",
+      impactPct: 18,
+    },
+  ];
+  return gaps.filter((g) => g.have < g.need).sort((a, b) => b.impactPct - a.impactPct);
+}
+
+export { FORMALITIES };
