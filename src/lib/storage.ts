@@ -75,8 +75,9 @@ export async function loadState(): Promise<PersistedState> {
     const weekPlan = (parsed.weekPlan?.length ? parsed.weekPlan : buildWeekPlan()).map((d) =>
       normalizeDayPlan(d)
     );
+    // Trust persisted wardrobe even when empty — never re-seed after the user deleted everything
     const wardrobe = (
-      parsed.wardrobe?.length
+      Array.isArray(parsed.wardrobe)
         ? parsed.wardrobe
         : __DEV__ || process.env.EXPO_PUBLIC_USE_SEED === "1"
           ? SEED_WARDROBE

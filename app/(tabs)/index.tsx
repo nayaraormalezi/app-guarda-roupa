@@ -47,6 +47,7 @@ export default function HomeScreen() {
         variant: todayLookVariant,
         excludeIds: todayExcludeIds,
         formality: today?.formalityId,
+        tempMin: today?.tempMin,
       }),
     [wardrobe, today, todayLookVariant, todayExcludeIds]
   );
@@ -200,6 +201,7 @@ export default function HomeScreen() {
             const occ = getOccasion(d.occasionId);
             const preview = buildOutfit(wardrobe, d.occasionId, d.temp, {
               formality: d.formalityId,
+              tempMin: d.tempMin,
             });
             const thumb = preview.outfit ? outfitPieces(preview.outfit)[0]?.item.img : undefined;
             const isToday = i === 0;

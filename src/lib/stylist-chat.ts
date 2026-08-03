@@ -75,6 +75,7 @@ export async function askStylist(params: {
   const local = buildOutfit(wardrobe, occasionGuess, temp, {
     formality: formalityGuess,
     variant: Date.now() % 7,
+    tempMin: /amanh/i.test(userText) ? tomorrow?.tempMin : today?.tempMin,
   });
 
   if (!preferServerAi() && !resolveGeminiApiKey()) {
@@ -137,7 +138,10 @@ Responda SOMENTE JSON:
       (String(parsed.formalityId || formalityGuess) as FormalityId) || formalityGuess;
     const includeOutfit = parsed.includeOutfit !== false;
     const pieceIds = (parsed.pieceIds ?? {}) as Partial<Record<keyof Outfit, string>>;
-    const rebuilt = buildOutfit(wardrobe, occasionId, temp, { formality: formalityId });
+    const rebuilt = buildOutfit(wardrobe, occasionId, temp, {
+      formality: formalityId,
+      tempMin: /amanh/i.test(userText) ? tomorrow?.tempMin : today?.tempMin,
+    });
     let outfit = includeOutfit
       ? resolveOutfitFromIds(wardrobe, pieceIds, rebuilt.outfit)
       : undefined;

@@ -266,6 +266,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
           ) as SavedLook["pieces"],
         })),
       });
+      void import("@/lib/sync").then(({ deletePieceFromCloud }) => deletePieceFromCloud(id));
     },
     [persist, state]
   );

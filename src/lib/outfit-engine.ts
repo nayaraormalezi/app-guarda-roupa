@@ -39,7 +39,8 @@ function scoreItem(
   item: ClothingItem,
   occasionId: OccasionId,
   formalityId: FormalityId,
-  temp?: number
+  temp?: number,
+  tempMin?: number
 ): number {
   let score = item.uses * 0.05;
   const occ = getOccasion(occasionId);
@@ -93,9 +94,15 @@ function scoreItem(
     score += 8;
   }
   if (temp !== undefined) {
-    if (temp < 18 && item.category === "casacos") score += 4;
     if (temp > 26 && /verão/i.test(item.season)) score += 3;
-    if (temp > 26 && item.category === "casacos") score -= 3;
+    // Só penaliza casaco no calor se a mínima também estiver alta
+    if (temp > 26 && (tempMin === undefined || tempMin > 20) && item.category === "casacos") {
+      score -= 3;
+    }
+  }
+  if ((tempMin !== undefined ? tempMin : temp) !== undefined) {
+    const cold = tempMin ?? temp!;
+    if (cold <= 20 && item.category === "casacos") score += 6;
   }
 
   return score;
@@ -106,14 +113,16 @@ function rankItems(
   occasionId: OccasionId,
   formalityId: FormalityId,
   temp?: number,
-  excludeIds: string[] = []
+  excludeIds: string[] = [],
+  tempMin?: number
 ): ClothingItem[] {
   const excluded = new Set(excludeIds);
   const preferred = items.filter((i) => !excluded.has(i.id));
   const pool = preferred.length ? preferred : items;
   return [...pool].sort(
     (a, b) =>
-      scoreItem(b, occasionId, formalityId, temp) - scoreItem(a, occasionId, formalityId, temp)
+      scoreItem(b, occasionId, formalityId, temp, tempMin) -
+      scoreItem(a, occasionId, formalityId, temp, tempMin)
   );
 }
 
@@ -127,18 +136,20 @@ function shortlist(
   formalityId: FormalityId,
   temp: number | undefined,
   excludeIds: string[],
-  limit = SHORTLIST
+  limit = SHORTLIST,
+  tempMin?: number
 ): ClothingItem[] {
-  return rankItems(items, occasionId, formalityId, temp, excludeIds).slice(0, limit);
+  return rankItems(items, occasionId, formalityId, temp, excludeIds, tempMin).slice(0, limit);
 }
 
 function contextSum(
   pieces: ClothingItem[],
   occasionId: OccasionId,
   formalityId: FormalityId,
-  temp?: number
+  temp?: number,
+  tempMin?: number
 ): number {
-  return pieces.reduce((s, p) => s + scoreItem(p, occasionId, formalityId, temp), 0);
+  return pieces.reduce((s, p) => s + scoreItem(p, occasionId, formalityId, temp, tempMin), 0);
 }
 
 function outfitList(outfit: Outfit): ClothingItem[] {
@@ -151,23 +162,27 @@ function scoreCombo(
   outfit: Outfit,
   occasionId: OccasionId,
   formalityId: FormalityId,
-  temp?: number
+  temp?: number,
+  tempMin?: number
 ): number {
   const pieces = outfitList(outfit);
   if (!pieces.length) return -Infinity;
   return (
-    contextSum(pieces, occasionId, formalityId, temp) +
+    contextSum(pieces, occasionId, formalityId, temp, tempMin) +
     scoreOutfitHarmony(pieces, occasionId, formalityId) * HARMONY_WEIGHT
   );
 }
 
+/** Inclui casaco quando a mínima for 20°C ou menos (ou dress code formal). */
 function wantOuterwear(
+  tempMin: number | undefined,
   temp: number | undefined,
   formality: FormalityId,
   variant: number
 ): boolean {
+  const min = tempMin ?? temp;
   return (
-    (temp !== undefined && temp < 20) ||
+    (min !== undefined && min <= 20) ||
     formality === "formal" ||
     (formality === "casual_arrumado" && variant % 2 === 0)
   );
@@ -185,6 +200,7 @@ function buildCandidates(params: {
   occasion: OccasionId;
   formality: FormalityId;
   temp?: number;
+  tempMin?: number;
   excludeIds: string[];
 }): Outfit[] {
   const {
@@ -199,16 +215,17 @@ function buildCandidates(params: {
     occasion,
     formality,
     temp,
+    tempMin,
     excludeIds,
   } = params;
 
-  const topSL = shortlist(tops, occasion, formality, temp, excludeIds);
-  const bottomSL = shortlist(bottoms, occasion, formality, temp, excludeIds);
-  const dressSL = shortlist(dresses, occasion, formality, temp, excludeIds);
-  const shoeSL = shortlist(shoes, occasion, formality, temp, excludeIds, 5);
-  const bagSL = shortlist(bags, occasion, formality, temp, excludeIds, 4);
+  const topSL = shortlist(tops, occasion, formality, temp, excludeIds, SHORTLIST, tempMin);
+  const bottomSL = shortlist(bottoms, occasion, formality, temp, excludeIds, SHORTLIST, tempMin);
+  const dressSL = shortlist(dresses, occasion, formality, temp, excludeIds, SHORTLIST, tempMin);
+  const shoeSL = shortlist(shoes, occasion, formality, temp, excludeIds, 5, tempMin);
+  const bagSL = shortlist(bags, occasion, formality, temp, excludeIds, 4, tempMin);
   const outerSL = includeOuter
-    ? shortlist(outerwear, occasion, formality, temp, excludeIds, 4)
+    ? shortlist(outerwear, occasion, formality, temp, excludeIds, 4, tempMin)
     : [];
 
   const shoeOpts: (ClothingItem | undefined)[] = shoeSL.length ? shoeSL : [undefined];
@@ -265,7 +282,7 @@ function buildCandidates(params: {
   // Cap explosion: keep best by quick score if too many
   if (candidates.length > 400) {
     return candidates
-      .map((o) => ({ o, s: scoreCombo(o, occasion, formality, temp) }))
+      .map((o) => ({ o, s: scoreCombo(o, occasion, formality, temp, tempMin) }))
       .sort((a, b) => b.s - a.s)
       .slice(0, 400)
       .map((x) => x.o);
@@ -277,6 +294,8 @@ export interface OutfitBuildOptions {
   variant?: number;
   excludeIds?: string[];
   formality?: FormalityId;
+  /** When min temp is <= 20°C, looks include a coat when available */
+  tempMin?: number;
 }
 
 export interface OutfitResult {
@@ -298,6 +317,7 @@ export function buildOutfit(
   );
   const variant = options.variant ?? 0;
   const excludeIds = options.excludeIds ?? [];
+  const tempMin = options.tempMin;
 
   const tops = byCategory(wardrobe, "superiores");
   const bottoms = byCategory(wardrobe, "inferiores");
@@ -313,7 +333,7 @@ export function buildOutfit(
     formality !== "formal" &&
     (dressFriendly ? variant % 3 !== 1 : variant % 4 === 3);
 
-  const includeOuter = wantOuterwear(temp, formality, variant);
+  const includeOuter = wantOuterwear(tempMin, temp, formality, variant);
   const missing: string[] = [];
 
   const tryDress = preferDress || (!tops.length && !bottoms.length && dresses.length > 0);
@@ -329,6 +349,7 @@ export function buildOutfit(
     occasion,
     formality,
     temp,
+    tempMin,
     excludeIds,
   });
 
@@ -346,6 +367,7 @@ export function buildOutfit(
       occasion,
       formality,
       temp,
+      tempMin,
       excludeIds,
     });
   }
@@ -353,6 +375,7 @@ export function buildOutfit(
   if (!tops.length && !tryDress) missing.push("peça superior");
   if (!bottoms.length && !tryDress) missing.push("calça ou saia");
   if (!shoes.length) missing.push("sapato");
+  if (includeOuter && !outerwear.length) missing.push("casaco");
 
   if (!candidates.length) {
     return {
@@ -367,7 +390,7 @@ export function buildOutfit(
   const ranked = candidates
     .map((outfit) => ({
       outfit,
-      score: scoreCombo(outfit, occasion, formality, temp),
+      score: scoreCombo(outfit, occasion, formality, temp, tempMin),
       harmony: scoreOutfitHarmony(outfitList(outfit), occasion, formality),
     }))
     .sort((a, b) => b.score - a.score);
@@ -387,12 +410,14 @@ export function buildOutfit(
   const occ = getOccasion(occasion);
   const form = getFormality(formality);
   const why = describeHarmony(pieces);
+  const coatNote =
+    includeOuter && outfit.outerwear ? " Inclui casaco (mínima ≤ 20°)." : "";
 
   return {
     outfit,
     message: `Para ${occ.label} · ${form.label.toLowerCase()}${
       temp !== undefined ? ` · ${temp}°` : ""
-    }: ${why}.`,
+    }: ${why}.${coatNote}`,
     missing,
     harmonyScore: pick.harmony,
   };

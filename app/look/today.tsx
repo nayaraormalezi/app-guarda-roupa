@@ -64,6 +64,7 @@ export default function TodayLookScreen() {
         variant: todayLookVariant,
         excludeIds: todayExcludeIds,
         formality: today?.formalityId,
+        tempMin: today?.tempMin,
       }),
     [wardrobe, today, todayLookVariant, todayExcludeIds]
   );

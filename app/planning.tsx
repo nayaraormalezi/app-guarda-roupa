@@ -39,7 +39,10 @@ export default function PlanningScreen() {
 
   const generated = useMemo(() => {
     if (!day) return null;
-    return buildOutfit(wardrobe, day.occasionId, day.temp, { formality: day.formalityId });
+    return buildOutfit(wardrobe, day.occasionId, day.temp, {
+      formality: day.formalityId,
+      tempMin: day.tempMin,
+    });
   }, [wardrobe, day]);
 
   const savedOutfit = day ? resolveDayOutfit(day) : null;
@@ -102,7 +105,10 @@ export default function PlanningScreen() {
             const resolved = resolveDayOutfit(d);
             const preview =
               resolved ??
-              buildOutfit(wardrobe, d.occasionId, d.temp, { formality: d.formalityId }).outfit;
+              buildOutfit(wardrobe, d.occasionId, d.temp, {
+                formality: d.formalityId,
+                tempMin: d.tempMin,
+              }).outfit;
             const thumb = preview ? outfitPieces(preview)[0]?.item.img : undefined;
             const on = i === selected;
             return (

@@ -75,6 +75,22 @@ export async function pushStateToCloud(state: PersistedState, userId: string): P
     );
   }
 
+  // Remove cloud pieces the user deleted locally (upsert alone never deletes)
+  const keepIds = new Set(wardrobe.map((i) => i.id));
+  const { data: remotePieces } = await supabase.from("pieces").select("id").eq("user_id", userId);
+  const orphanIds = (remotePieces ?? []).map((r) => r.id as string).filter((id) => !keepIds.has(id));
+  if (orphanIds.length) {
+    await supabase.from("pieces").delete().eq("user_id", userId).in("id", orphanIds);
+    for (const id of orphanIds) {
+      try {
+        await supabase.storage.from("wardrobe").remove([`${userId}/${id}.jpg`]);
+      } catch {
+        // ignore storage cleanup errors
+      }
+    }
+  }
+
+  // Looks: upsert then drop orphans
   if (state.savedLooks.length) {
     await supabase.from("looks").upsert(
       state.savedLooks.map((l: SavedLook) => ({
@@ -87,6 +103,12 @@ export async function pushStateToCloud(state: PersistedState, userId: string): P
         created_at: l.createdAt,
       }))
     );
+  }
+  const keepLookIds = new Set(state.savedLooks.map((l) => l.id));
+  const { data: remoteLooks } = await supabase.from("looks").select("id").eq("user_id", userId);
+  const orphanLooks = (remoteLooks ?? []).map((r) => r.id as string).filter((id) => !keepLookIds.has(id));
+  if (orphanLooks.length) {
+    await supabase.from("looks").delete().eq("user_id", userId).in("id", orphanLooks);
   }
 
   if (state.weekPlan.length) {
@@ -125,6 +147,12 @@ export async function pushStateToCloud(state: PersistedState, userId: string): P
         created_at: w.createdAt,
       }))
     );
+  }
+  const keepWishIds = new Set(state.wishList.map((w) => w.id));
+  const { data: remoteWish } = await supabase.from("wish_list").select("id").eq("user_id", userId);
+  const orphanWish = (remoteWish ?? []).map((r) => r.id as string).filter((id) => !keepWishIds.has(id));
+  if (orphanWish.length) {
+    await supabase.from("wish_list").delete().eq("user_id", userId).in("id", orphanWish);
   }
 
   if (state.chatMessages.length) {
@@ -244,31 +272,45 @@ export async function pullStateFromCloud(userId: string): Promise<Partial<Persis
   };
 }
 
-/** Merge cloud into local: cloud wins for non-empty collections; keep local photos if cloud empty. */
+/** Merge cloud into local: local wardrobe wins once the device has been initialized (keeps deletes). */
 export function mergeLocalAndCloud(
   local: PersistedState,
   cloud: Partial<PersistedState>
 ): PersistedState {
+  // New device / empty local → restore from cloud. Otherwise local is source of truth (incl. deletions).
   const wardrobe =
-    cloud.wardrobe && cloud.wardrobe.length >= local.wardrobe.length
-      ? cloud.wardrobe
-      : local.wardrobe.length
-        ? local.wardrobe
-        : cloud.wardrobe ?? local.wardrobe;
+    local.seeded || local.wardrobe.length > 0
+      ? local.wardrobe
+      : cloud.wardrobe?.length
+        ? cloud.wardrobe
+        : local.wardrobe;
+
+  const savedLooks =
+    local.seeded || local.savedLooks.length > 0
+      ? local.savedLooks
+      : cloud.savedLooks?.length
+        ? cloud.savedLooks
+        : local.savedLooks;
+
+  const wishList =
+    local.seeded || local.wishList.length > 0
+      ? local.wishList
+      : cloud.wishList?.length
+        ? cloud.wishList
+        : local.wishList;
 
   return {
     ...local,
     wardrobe,
-    savedLooks: cloud.savedLooks?.length ? cloud.savedLooks : local.savedLooks,
+    savedLooks,
     weekPlan: cloud.weekPlan?.length ? cloud.weekPlan : local.weekPlan,
-    wishList: cloud.wishList?.length ? cloud.wishList : local.wishList,
+    wishList,
     favoriteStores: cloud.favoriteStores?.length ? cloud.favoriteStores : local.favoriteStores,
     chatMessages: cloud.chatMessages?.length ? cloud.chatMessages : local.chatMessages,
     preferences: cloud.preferences
       ? {
           ...local.preferences,
           ...cloud.preferences,
-          // Uma vez completo (local ou nuvem), não voltar ao onboarding
           onboardingComplete:
             Boolean(local.preferences.onboardingComplete) ||
             Boolean(cloud.preferences.onboardingComplete),
@@ -282,4 +324,19 @@ export function mergeLocalAndCloud(
       : local.preferences,
     seeded: true,
   };
+}
+
+/** Delete a single piece from Supabase right away so sync cannot revive it. */
+export async function deletePieceFromCloud(pieceId: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { data } = await supabase.auth.getUser();
+  const userId = data.user?.id;
+  if (!userId) return;
+  await supabase.from("pieces").delete().eq("user_id", userId).eq("id", pieceId);
+  try {
+    await supabase.storage.from("wardrobe").remove([`${userId}/${pieceId}.jpg`]);
+  } catch {
+    // ignore
+  }
 }
