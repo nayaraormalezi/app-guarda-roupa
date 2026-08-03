@@ -13,6 +13,7 @@ import type {
   SavedLook,
   Status,
   WishItem,
+  FavoriteStore,
 } from "@/data/types";
 import {
   defaultFormalityFor,
@@ -55,6 +56,7 @@ interface WardrobeContextValue {
   savedLooks: SavedLook[];
   chatMessages: ChatMessage[];
   wishList: WishItem[];
+  favoriteStores: FavoriteStore[];
   weatherLoading: boolean;
   addItem: (input: NewItemInput) => Promise<ClothingItem>;
   updateItem: (id: string, patch: ItemPatch) => Promise<void>;
@@ -92,6 +94,8 @@ interface WardrobeContextValue {
   replaceChatMessages: (msgs: ChatMessage[]) => Promise<void>;
   addWish: (input: Omit<WishItem, "id" | "createdAt">) => Promise<WishItem>;
   removeWish: (id: string) => Promise<void>;
+  addFavoriteStore: (input: { name: string; url: string }) => Promise<FavoriteStore>;
+  removeFavoriteStore: (id: string) => Promise<void>;
   replacePersistedState: (next: PersistedState) => Promise<void>;
   getPersistedSnapshot: () => PersistedState;
   filterWardrobe: (opts: {
@@ -491,6 +495,36 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
     [persist, state]
   );
 
+  const addFavoriteStore = useCallback(
+    async (input: { name: string; url: string }) => {
+      if (!state) throw new Error("Store not ready");
+      const item: FavoriteStore = {
+        id: createId(),
+        name: input.name.trim(),
+        url: input.url.trim(),
+        createdAt: Date.now(),
+      };
+      const exists = state.favoriteStores.some(
+        (s) => s.url.replace(/\/$/, "") === item.url.replace(/\/$/, "")
+      );
+      if (exists) return state.favoriteStores.find((s) => s.url.replace(/\/$/, "") === item.url.replace(/\/$/, ""))!;
+      await persist({ ...state, favoriteStores: [item, ...state.favoriteStores] });
+      return item;
+    },
+    [persist, state]
+  );
+
+  const removeFavoriteStore = useCallback(
+    async (id: string) => {
+      if (!state) return;
+      await persist({
+        ...state,
+        favoriteStores: state.favoriteStores.filter((s) => s.id !== id),
+      });
+    },
+    [persist, state]
+  );
+
   const replacePersistedState = useCallback(
     async (next: PersistedState) => {
       await persist(next);
@@ -512,6 +546,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
         savedLooks: [],
         chatMessages: [],
         wishList: [],
+        favoriteStores: [],
         seeded: true,
       }
     );
@@ -568,6 +603,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
       savedLooks: state?.savedLooks ?? [],
       chatMessages: state?.chatMessages ?? [],
       wishList: state?.wishList ?? [],
+      favoriteStores: state?.favoriteStores ?? [],
       weatherLoading,
       addItem,
       updateItem,
@@ -594,6 +630,8 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
       replaceChatMessages,
       addWish,
       removeWish,
+      addFavoriteStore,
+      removeFavoriteStore,
       replacePersistedState,
       getPersistedSnapshot,
       filterWardrobe,
@@ -627,6 +665,8 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
       replaceChatMessages,
       addWish,
       removeWish,
+      addFavoriteStore,
+      removeFavoriteStore,
       replacePersistedState,
       getPersistedSnapshot,
       filterWardrobe,

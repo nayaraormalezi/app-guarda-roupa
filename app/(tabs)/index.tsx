@@ -105,7 +105,18 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <Text style={[styles.section, { marginTop: 36 }]}>Look de hoje</Text>
+        {wardrobe.length === 0 && (
+          <Pressable style={styles.startCard} onPress={() => router.push("/(tabs)/add")}>
+            <Text style={styles.startEyebrow}>Primeiro passo</Text>
+            <Text style={styles.startTitle}>Adicione peças do seu armário</Text>
+            <Text style={styles.startBody}>
+              Toque em + e fotografe 5–8 peças. A IA preenche os detalhes; você confirma e salva.
+            </Text>
+            <Text style={styles.startCta}>Começar agora →</Text>
+          </Pressable>
+        )}
+
+        <Text style={[styles.section, { marginTop: wardrobe.length === 0 ? 24 : 36 }]}>Look de hoje</Text>
         <View style={styles.card}>
           {hero ? (
             <Image source={{ uri: hero.img }} style={styles.heroImg} />
@@ -305,6 +316,38 @@ const styles = StyleSheet.create({
     color: colors.ink,
     textDecorationLine: "underline",
     textDecorationColor: colors.gold,
+  },
+  startCard: {
+    marginTop: 24,
+    backgroundColor: colors.ink,
+    borderRadius: 22,
+    padding: 20,
+  },
+  startEyebrow: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.gold,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  },
+  startTitle: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    color: colors.white,
+    marginTop: 8,
+  },
+  startBody: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 8,
+    lineHeight: 19,
+  },
+  startCta: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.gold,
+    marginTop: 14,
   },
   section: { fontFamily: fonts.displayMedium, fontSize: 22, color: colors.ink, marginBottom: 16 },
   card: {

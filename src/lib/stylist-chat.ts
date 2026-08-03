@@ -6,6 +6,7 @@ import {
   detectOccasionFromText,
   outfitPieces,
 } from "@/lib/outfit-engine";
+import { MIN_AI_HARMONY, scoreOutfitHarmony } from "@/lib/look-harmony";
 import { extractJsonObject, geminiGenerateText, preferServerAi, resolveGeminiApiKey } from "@/lib/gemini-client";
 
 export interface StylistReply {
@@ -21,7 +22,7 @@ function wardrobeDigest(wardrobe: ClothingItem[]): string {
     .slice(0, 40)
     .map(
       (i) =>
-        `- ${i.id}: ${i.name} | ${i.category}/${i.subcategory} | ${i.color} | ${i.style} | ${i.formality} | ${i.brand}`
+        `- ${i.id}: ${i.name} | ${i.category}/${i.subcategory} | ${i.color} (${i.colorHex || "sem hex"}) | ${i.style} | ${i.formality} | ${i.brand}`
     )
     .join("\n");
 }
@@ -32,7 +33,7 @@ function resolveOutfitFromIds(
   fallback: Outfit | null
 ): Outfit | undefined {
   if (!ids) return fallback ?? undefined;
-  const find = (id?: string) => wardrobe.find((i) => i.id === id);
+  const find = (id?: string) => (id && id !== "null" ? wardrobe.find((i) => i.id === id) : undefined);
   const outfit: Outfit = {
     top: find(ids.top),
     bottom: find(ids.bottom),
@@ -43,6 +44,13 @@ function resolveOutfitFromIds(
   };
   const has = outfitPieces(outfit).length > 0;
   return has ? outfit : fallback ?? undefined;
+}
+
+function outfitHarmonyOk(outfit: Outfit | undefined, occasionId: OccasionId, formalityId: FormalityId): boolean {
+  if (!outfit) return false;
+  const pieces = outfitPieces(outfit).map((p) => p.item);
+  if (pieces.length < 2) return pieces.length === 1;
+  return scoreOutfitHarmony(pieces, occasionId, formalityId) >= MIN_AI_HARMONY;
 }
 
 export async function askStylist(params: {
@@ -96,9 +104,18 @@ ${recent || "(novo)"}
 
 Pedido: ${userText}
 
+Regras de combinação (obrigatórias):
+- As peças DEVEM combinar de verdade: cores em harmonia (neutros com tudo; análogas; evitar dois tons saturados que brigam).
+- Estilos coerentes (não misture street esportivo com alfaiataria formal sem motivo).
+- Sapato e bolsa alinhados à ocasião (ex.: academia ≠ salto; trabalho ≠ chinelo).
+- Prefira pelo menos uma âncora neutra (preto, branco, bege, jeans, cinza).
+- Em "text", explique em 1 frase POR QUE as peças combinam (cor/estilo), além do contexto do dia.
+- Não invente ids. Prefira peças available.
+- Se não fizer sentido montar look, includeOutfit=false e pieceIds vazios.
+
 Responda SOMENTE JSON:
 {
-  "text": "resposta curta e útil em português (2-4 frases)",
+  "text": "resposta curta e útil em português (2-4 frases), incluindo por que combina",
   "occasionId": "trabalho|faculdade|encontro|festa|praia|viagem|academia|evento|casa",
   "formalityId": "casual|casual_arrumado|formal",
   "pieceIds": {
@@ -110,13 +127,10 @@ Responda SOMENTE JSON:
     "outerwear": "id ou null"
   },
   "includeOutfit": true
-}
-
-Se não fizer sentido montar look, includeOutfit=false e pieceIds vazios.
-Prefira peças available. Não invente ids.`;
+}`;
 
   try {
-    const raw = await geminiGenerateText(prompt, { json: true, temperature: 0.5 });
+    const raw = await geminiGenerateText(prompt, { json: true, temperature: 0.45 });
     const parsed = extractJsonObject(raw);
     const occasionId = (String(parsed.occasionId || occasionGuess) as OccasionId) || occasionGuess;
     const formalityId =
@@ -124,9 +138,15 @@ Prefira peças available. Não invente ids.`;
     const includeOutfit = parsed.includeOutfit !== false;
     const pieceIds = (parsed.pieceIds ?? {}) as Partial<Record<keyof Outfit, string>>;
     const rebuilt = buildOutfit(wardrobe, occasionId, temp, { formality: formalityId });
-    const outfit = includeOutfit
+    let outfit = includeOutfit
       ? resolveOutfitFromIds(wardrobe, pieceIds, rebuilt.outfit)
       : undefined;
+
+    // Reject low-harmony AI picks in favor of the local harmony engine
+    if (includeOutfit && outfit && !outfitHarmonyOk(outfit, occasionId, formalityId)) {
+      outfit = rebuilt.outfit ?? local.outfit ?? undefined;
+    }
+
     const text =
       String(parsed.text || "").trim() ||
       rebuilt.message ||

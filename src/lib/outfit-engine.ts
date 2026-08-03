@@ -8,6 +8,11 @@ import {
   OCCASIONS,
 } from "@/data/types";
 import { normalizeFormality } from "@/data/catalog";
+import {
+  describeHarmony,
+  scoreItemAgainstOutfit,
+  scoreOutfitHarmony,
+} from "@/lib/look-harmony";
 
 function available(items: ClothingItem[]) {
   return items.filter((i) => i.status === "available");
@@ -112,17 +117,160 @@ function rankItems(
   );
 }
 
-function pickVariant(
+const SHORTLIST = 6;
+/** Harmony is scaled higher so visual match beats weak context ties */
+const HARMONY_WEIGHT = 1.35;
+
+function shortlist(
   items: ClothingItem[],
   occasionId: OccasionId,
   formalityId: FormalityId,
   temp: number | undefined,
-  variant: number,
-  excludeIds: string[] = []
-): ClothingItem | undefined {
-  const ranked = rankItems(items, occasionId, formalityId, temp, excludeIds);
-  if (!ranked.length) return undefined;
-  return ranked[Math.abs(variant) % ranked.length];
+  excludeIds: string[],
+  limit = SHORTLIST
+): ClothingItem[] {
+  return rankItems(items, occasionId, formalityId, temp, excludeIds).slice(0, limit);
+}
+
+function contextSum(
+  pieces: ClothingItem[],
+  occasionId: OccasionId,
+  formalityId: FormalityId,
+  temp?: number
+): number {
+  return pieces.reduce((s, p) => s + scoreItem(p, occasionId, formalityId, temp), 0);
+}
+
+function outfitList(outfit: Outfit): ClothingItem[] {
+  return [outfit.dress, outfit.top, outfit.bottom, outfit.shoe, outfit.bag, outfit.outerwear].filter(
+    (p): p is ClothingItem => Boolean(p)
+  );
+}
+
+function scoreCombo(
+  outfit: Outfit,
+  occasionId: OccasionId,
+  formalityId: FormalityId,
+  temp?: number
+): number {
+  const pieces = outfitList(outfit);
+  if (!pieces.length) return -Infinity;
+  return (
+    contextSum(pieces, occasionId, formalityId, temp) +
+    scoreOutfitHarmony(pieces, occasionId, formalityId) * HARMONY_WEIGHT
+  );
+}
+
+function wantOuterwear(
+  temp: number | undefined,
+  formality: FormalityId,
+  variant: number
+): boolean {
+  return (
+    (temp !== undefined && temp < 20) ||
+    formality === "formal" ||
+    (formality === "casual_arrumado" && variant % 2 === 0)
+  );
+}
+
+function buildCandidates(params: {
+  tops: ClothingItem[];
+  bottoms: ClothingItem[];
+  dresses: ClothingItem[];
+  shoes: ClothingItem[];
+  bags: ClothingItem[];
+  outerwear: ClothingItem[];
+  useDress: boolean;
+  includeOuter: boolean;
+  occasion: OccasionId;
+  formality: FormalityId;
+  temp?: number;
+  excludeIds: string[];
+}): Outfit[] {
+  const {
+    tops,
+    bottoms,
+    dresses,
+    shoes,
+    bags,
+    outerwear,
+    useDress,
+    includeOuter,
+    occasion,
+    formality,
+    temp,
+    excludeIds,
+  } = params;
+
+  const topSL = shortlist(tops, occasion, formality, temp, excludeIds);
+  const bottomSL = shortlist(bottoms, occasion, formality, temp, excludeIds);
+  const dressSL = shortlist(dresses, occasion, formality, temp, excludeIds);
+  const shoeSL = shortlist(shoes, occasion, formality, temp, excludeIds, 5);
+  const bagSL = shortlist(bags, occasion, formality, temp, excludeIds, 4);
+  const outerSL = includeOuter
+    ? shortlist(outerwear, occasion, formality, temp, excludeIds, 4)
+    : [];
+
+  const shoeOpts: (ClothingItem | undefined)[] = shoeSL.length ? shoeSL : [undefined];
+  const bagOpts: (ClothingItem | undefined)[] = bagSL.length ? [...bagSL, undefined] : [undefined];
+  const outerOpts: (ClothingItem | undefined)[] = includeOuter
+    ? outerSL.length
+      ? outerSL
+      : [undefined]
+    : [undefined];
+
+  const candidates: Outfit[] = [];
+  const push = (o: Outfit) => {
+    candidates.push(o);
+  };
+
+  if (useDress && dressSL.length) {
+    for (const dress of dressSL) {
+      for (const shoe of shoeOpts) {
+        for (const bag of bagOpts.slice(0, 3)) {
+          for (const outer of outerOpts.slice(0, 3)) {
+            push({
+              dress,
+              shoe: shoe ?? undefined,
+              bag: bag ?? undefined,
+              outerwear: outer ?? undefined,
+            });
+          }
+        }
+      }
+    }
+  } else {
+    const tOpts = topSL.length ? topSL : [undefined];
+    const bOpts = bottomSL.length ? bottomSL : [undefined];
+    for (const top of tOpts) {
+      for (const bottom of bOpts) {
+        if (!top && !bottom) continue;
+        for (const shoe of shoeOpts) {
+          for (const bag of bagOpts.slice(0, 3)) {
+            for (const outer of outerOpts.slice(0, 3)) {
+              push({
+                top: top ?? undefined,
+                bottom: bottom ?? undefined,
+                shoe: shoe ?? undefined,
+                bag: bag ?? undefined,
+                outerwear: outer ?? undefined,
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Cap explosion: keep best by quick score if too many
+  if (candidates.length > 400) {
+    return candidates
+      .map((o) => ({ o, s: scoreCombo(o, occasion, formality, temp) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 400)
+      .map((x) => x.o);
+  }
+  return candidates;
 }
 
 export interface OutfitBuildOptions {
@@ -135,6 +283,7 @@ export interface OutfitResult {
   outfit: Outfit | null;
   message: string;
   missing: string[];
+  harmonyScore?: number;
 }
 
 export function buildOutfit(
@@ -159,34 +308,73 @@ export function buildOutfit(
 
   const dressFriendly =
     occasion === "evento" || occasion === "encontro" || occasion === "festa" || occasion === "praia";
-  const useDress =
+  const preferDress =
     dresses.length > 0 &&
     formality !== "formal" &&
     (dressFriendly ? variant % 3 !== 1 : variant % 4 === 3);
 
-  const outfit: Outfit = {};
+  const includeOuter = wantOuterwear(temp, formality, variant);
   const missing: string[] = [];
 
-  if (useDress) {
-    outfit.dress = pickVariant(dresses, occasion, formality, temp, variant, excludeIds);
-  } else {
-    outfit.top = pickVariant(tops, occasion, formality, temp, variant, excludeIds);
-    outfit.bottom = pickVariant(bottoms, occasion, formality, temp, variant + 1, excludeIds);
-    if (!outfit.top) missing.push("peça superior");
-    if (!outfit.bottom) missing.push("calça ou saia");
+  const tryDress = preferDress || (!tops.length && !bottoms.length && dresses.length > 0);
+  let candidates = buildCandidates({
+    tops,
+    bottoms,
+    dresses,
+    shoes,
+    bags,
+    outerwear,
+    useDress: tryDress,
+    includeOuter,
+    occasion,
+    formality,
+    temp,
+    excludeIds,
+  });
+
+  // If dress path empty, fall back to separates
+  if (!candidates.length && tryDress) {
+    candidates = buildCandidates({
+      tops,
+      bottoms,
+      dresses,
+      shoes,
+      bags,
+      outerwear,
+      useDress: false,
+      includeOuter,
+      occasion,
+      formality,
+      temp,
+      excludeIds,
+    });
   }
 
-  outfit.shoe = pickVariant(shoes, occasion, formality, temp, variant + 2, excludeIds);
-  outfit.bag = pickVariant(bags, occasion, formality, temp, variant + 3, excludeIds);
-  if (
-    (temp !== undefined && temp < 20) ||
-    formality === "formal" ||
-    (formality === "casual_arrumado" && variant % 2 === 0)
-  ) {
-    outfit.outerwear = pickVariant(outerwear, occasion, formality, temp, variant + 4, excludeIds);
+  if (!tops.length && !tryDress) missing.push("peça superior");
+  if (!bottoms.length && !tryDress) missing.push("calça ou saia");
+  if (!shoes.length) missing.push("sapato");
+
+  if (!candidates.length) {
+    return {
+      outfit: null,
+      message: `Não consegui montar um look completo. Faltam: ${
+        missing.length ? missing.join(", ") : "peças disponíveis"
+      }. Adicione peças no guarda-roupa.`,
+      missing,
+    };
   }
 
-  if (!outfit.shoe) missing.push("sapato");
+  const ranked = candidates
+    .map((outfit) => ({
+      outfit,
+      score: scoreCombo(outfit, occasion, formality, temp),
+      harmony: scoreOutfitHarmony(outfitList(outfit), occasion, formality),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const pick = ranked[Math.abs(variant) % ranked.length];
+  const outfit = pick.outfit;
+  const pieces = outfitList(outfit);
 
   if (missing.length && !outfit.dress && !outfit.top) {
     return {
@@ -198,15 +386,15 @@ export function buildOutfit(
 
   const occ = getOccasion(occasion);
   const form = getFormality(formality);
-  const pieces = [outfit.dress, outfit.top, outfit.bottom, outfit.shoe, outfit.bag, outfit.outerwear].filter(
-    Boolean
-  );
+  const why = describeHarmony(pieces);
+
   return {
     outfit,
-    message: `Para ${occ.label} em formalidade ${form.label.toLowerCase()}${
-      temp !== undefined ? `, ${temp}°` : ""
-    }: combinação com ${pieces.length} peças do seu guarda-roupa.`,
+    message: `Para ${occ.label} · ${form.label.toLowerCase()}${
+      temp !== undefined ? ` · ${temp}°` : ""
+    }: ${why}.`,
     missing,
+    harmonyScore: pick.harmony,
   };
 }
 
@@ -227,11 +415,26 @@ export function alternativesForSlot(
   occasionId: OccasionId,
   formalityId: FormalityId,
   temp?: number,
-  currentId?: string
+  currentId?: string,
+  currentOutfit?: Outfit
 ): ClothingItem[] {
   const cats = new Set(SLOT_CATEGORY[slot]);
+  const occasion = normalizeOccasionId(occasionId);
   const pool = available(wardrobe).filter((i) => cats.has(i.category) && i.id !== currentId);
-  return rankItems(pool, normalizeOccasionId(occasionId), formalityId, temp).slice(0, 8);
+
+  return [...pool]
+    .sort((a, b) => {
+      const ctxA = scoreItem(a, occasion, formalityId, temp);
+      const ctxB = scoreItem(b, occasion, formalityId, temp);
+      const harmA = currentOutfit
+        ? scoreItemAgainstOutfit(a, currentOutfit, occasion, formalityId, slot)
+        : 0;
+      const harmB = currentOutfit
+        ? scoreItemAgainstOutfit(b, currentOutfit, occasion, formalityId, slot)
+        : 0;
+      return ctxB + harmB * HARMONY_WEIGHT - (ctxA + harmA * HARMONY_WEIGHT);
+    })
+    .slice(0, 8);
 }
 
 export function swapOutfitSlot(

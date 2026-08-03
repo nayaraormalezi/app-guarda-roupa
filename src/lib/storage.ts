@@ -1,7 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import { normalizeCategory, normalizeFormality } from "@/data/catalog";
-import type { AppPreferences, ChatMessage, ClothingItem, PersistedState, WishItem } from "@/data/types";
+import type {
+  AppPreferences,
+  ChatMessage,
+  ClothingItem,
+  FavoriteStore,
+  PersistedState,
+  WishItem,
+} from "@/data/types";
 import { buildWeekPlan, DEFAULT_PREFERENCES, normalizeDayPlan, SEED_WARDROBE } from "@/data/seed";
 
 const STORAGE_KEY = "@personal_stylist/v2";
@@ -53,6 +60,7 @@ function emptyState(): PersistedState {
     savedLooks: [],
     chatMessages: [defaultWelcome("")],
     wishList: [],
+    favoriteStores: [],
     seeded: seed,
   };
 }
@@ -86,6 +94,7 @@ export async function loadState(): Promise<PersistedState> {
       savedLooks: parsed.savedLooks ?? [],
       chatMessages,
       wishList: (parsed.wishList as WishItem[] | undefined) ?? [],
+      favoriteStores: (parsed.favoriteStores as FavoriteStore[] | undefined) ?? [],
       seeded: true,
     };
   } catch {

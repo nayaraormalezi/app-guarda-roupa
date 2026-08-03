@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   ClothingItem,
   DayPlan,
+  FavoriteStore,
   PersistedState,
   SavedLook,
   WishItem,
@@ -46,6 +47,7 @@ export async function pushStateToCloud(state: PersistedState, userId: string): P
     latitude: state.preferences.latitude ?? null,
     longitude: state.preferences.longitude ?? null,
     onboarding_complete: state.preferences.onboardingComplete,
+    favorite_stores: state.favoriteStores ?? [],
     updated_at: new Date().toISOString(),
   });
 
@@ -117,6 +119,9 @@ export async function pushStateToCloud(state: PersistedState, userId: string): P
         subcategory_hint: w.subcategoryHint,
         formality_hint: w.formalityHint,
         gap_id: w.gapId ?? null,
+        store_name: w.storeName ?? null,
+        buy_url: w.buyUrl ?? null,
+        image_url: w.imageUrl ?? null,
         created_at: w.createdAt,
       }))
     );
@@ -202,8 +207,15 @@ export async function pullStateFromCloud(userId: string): Promise<Partial<Persis
     subcategoryHint: w.subcategory_hint,
     formalityHint: w.formality_hint,
     gapId: w.gap_id ?? undefined,
+    storeName: w.store_name ?? undefined,
+    buyUrl: w.buy_url ?? undefined,
+    imageUrl: w.image_url ?? undefined,
     createdAt: w.created_at,
   }));
+
+  const favoriteStores: FavoriteStore[] = Array.isArray(profile?.favorite_stores)
+    ? (profile.favorite_stores as FavoriteStore[])
+    : [];
 
   const chatMessages: ChatMessage[] = (chatRes.data ?? []).map((m) => ({
     id: m.id,
@@ -217,6 +229,7 @@ export async function pullStateFromCloud(userId: string): Promise<Partial<Persis
     savedLooks,
     weekPlan: weekPlan.length ? weekPlan : undefined,
     wishList,
+    favoriteStores: favoriteStores.length ? favoriteStores : undefined,
     chatMessages: chatMessages.length ? chatMessages : undefined,
     preferences: profile
       ? {
@@ -249,9 +262,23 @@ export function mergeLocalAndCloud(
     savedLooks: cloud.savedLooks?.length ? cloud.savedLooks : local.savedLooks,
     weekPlan: cloud.weekPlan?.length ? cloud.weekPlan : local.weekPlan,
     wishList: cloud.wishList?.length ? cloud.wishList : local.wishList,
+    favoriteStores: cloud.favoriteStores?.length ? cloud.favoriteStores : local.favoriteStores,
     chatMessages: cloud.chatMessages?.length ? cloud.chatMessages : local.chatMessages,
     preferences: cloud.preferences
-      ? { ...local.preferences, ...cloud.preferences }
+      ? {
+          ...local.preferences,
+          ...cloud.preferences,
+          // Uma vez completo (local ou nuvem), não voltar ao onboarding
+          onboardingComplete:
+            Boolean(local.preferences.onboardingComplete) ||
+            Boolean(cloud.preferences.onboardingComplete),
+          displayName: cloud.preferences.displayName || local.preferences.displayName,
+          city: cloud.preferences.city || local.preferences.city,
+          styleTags:
+            cloud.preferences.styleTags?.length
+              ? cloud.preferences.styleTags
+              : local.preferences.styleTags,
+        }
       : local.preferences,
     seeded: true,
   };

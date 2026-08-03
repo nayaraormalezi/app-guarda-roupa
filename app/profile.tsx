@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Bell, ChevronRight, Cloud, HelpCircle, Shield } from "lucide-react-native";
+import { Bell, ChevronRight, Cloud, HelpCircle, LogOut, Shield } from "lucide-react-native";
 import { STYLE_TAG_OPTIONS } from "@/data/types";
 import { searchCities, type GeoCity } from "@/lib/weather";
 import { useAuth } from "@/store/auth-store";
@@ -22,11 +22,12 @@ import { fonts } from "@/theme/typography";
 export default function ProfileScreen() {
   const router = useRouter();
   const { preferences, updatePreferences, refreshWeather } = useWardrobe();
-  const { configured, user } = useAuth();
+  const { configured, user, signOut } = useAuth();
   const [name, setName] = useState(preferences.displayName);
   const [cityQuery, setCityQuery] = useState(preferences.city);
   const [cities, setCities] = useState<GeoCity[]>([]);
   const [searching, setSearching] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     setName(preferences.displayName);
@@ -76,6 +77,27 @@ export default function ProfileScreen() {
     Alert.alert("Cidade atualizada", `Clima de ${label}: máxima e mínima sincronizadas.`);
   };
 
+  const onSignOut = () => {
+    Alert.alert("Sair da conta", "Deseja encerrar a sessão neste aparelho? Seus dados locais permanecem.", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sair",
+        style: "destructive",
+        onPress: async () => {
+          setSigningOut(true);
+          try {
+            await signOut();
+            Alert.alert("Sessão encerrada", "Você saiu da conta. Pode entrar de novo em Conta e sync.");
+          } catch (e) {
+            Alert.alert("Erro", e instanceof Error ? e.message : "Não foi possível sair.");
+          } finally {
+            setSigningOut(false);
+          }
+        },
+      },
+    ]);
+  };
+
   const menu = [
     {
       icon: Cloud,
@@ -117,7 +139,23 @@ export default function ProfileScreen() {
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{user ? "Conta ativa" : "Local"}</Text>
           </View>
+          {user?.email ? (
+            <Text style={styles.email}>{user.email}</Text>
+          ) : null}
         </View>
+
+        {user ? (
+          <Pressable
+            style={[styles.logoutBtn, signingOut && { opacity: 0.6 }]}
+            onPress={onSignOut}
+            disabled={signingOut}
+            accessibilityRole="button"
+            accessibilityLabel="Sair da conta"
+          >
+            <LogOut size={16} color="#B91C1C" />
+            <Text style={styles.logoutText}>{signingOut ? "Saindo…" : "Sair da conta"}</Text>
+          </Pressable>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Nome</Text>
@@ -211,6 +249,12 @@ const styles = StyleSheet.create({
   },
   name: { fontFamily: fonts.display, fontSize: 22, color: colors.white, marginTop: 8 },
   city: { fontFamily: fonts.body, fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4 },
+  email: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.65)",
+    marginTop: 10,
+  },
   badge: {
     alignSelf: "flex-start",
     marginTop: 16,
@@ -226,6 +270,19 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(185,28,28,0.25)",
+  },
+  logoutText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#B91C1C" },
   card: { backgroundColor: colors.white, borderRadius: 20, padding: 20, marginBottom: 16 },
   cardLabel: {
     fontFamily: fonts.mono,

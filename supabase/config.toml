@@ -1,0 +1,11 @@
+# Link do projeto remoto (referência local)
+project_id = "mkeknwjrowkifopqhjkj"
+
+[api]
+enabled = true
+
+[db]
+port = 54322
+
+[functions.ai]
+verify_jwt = true

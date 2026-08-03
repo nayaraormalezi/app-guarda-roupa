@@ -1,5 +1,5 @@
--- Personal Stylist — Supabase schema
--- Run in Supabase SQL editor before enabling sync.
+-- Personal Stylist — cole TODO este conteúdo no SQL Editor do Supabase
+-- (não cole o nome do arquivo)
 
 create extension if not exists "pgcrypto";
 
@@ -95,21 +95,27 @@ alter table public.week_plans enable row level security;
 alter table public.wish_list enable row level security;
 alter table public.chat_messages enable row level security;
 
+drop policy if exists "profiles_own" on public.profiles;
 create policy "profiles_own" on public.profiles
   for all using (auth.uid() = id) with check (auth.uid() = id);
 
+drop policy if exists "pieces_own" on public.pieces;
 create policy "pieces_own" on public.pieces
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "looks_own" on public.looks;
 create policy "looks_own" on public.looks
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "week_plans_own" on public.week_plans;
 create policy "week_plans_own" on public.week_plans
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "wish_list_own" on public.wish_list;
 create policy "wish_list_own" on public.wish_list
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "chat_messages_own" on public.chat_messages;
 create policy "chat_messages_own" on public.chat_messages
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
@@ -117,19 +123,33 @@ insert into storage.buckets (id, name, public)
 values ('wardrobe', 'wardrobe', true)
 on conflict (id) do nothing;
 
+-- Extensões para compras / lojas favoritas
+alter table public.profiles
+  add column if not exists favorite_stores jsonb default '[]'::jsonb;
+
+alter table public.wish_list
+  add column if not exists store_name text;
+
+alter table public.wish_list
+  add column if not exists buy_url text;
+
+drop policy if exists "wardrobe_read" on storage.objects;
 create policy "wardrobe_read" on storage.objects
   for select using (bucket_id = 'wardrobe');
 
+drop policy if exists "wardrobe_write_own" on storage.objects;
 create policy "wardrobe_write_own" on storage.objects
   for insert with check (
     bucket_id = 'wardrobe' and auth.uid()::text = (storage.foldername(name))[1]
   );
 
+drop policy if exists "wardrobe_update_own" on storage.objects;
 create policy "wardrobe_update_own" on storage.objects
   for update using (
     bucket_id = 'wardrobe' and auth.uid()::text = (storage.foldername(name))[1]
   );
 
+drop policy if exists "wardrobe_delete_own" on storage.objects;
 create policy "wardrobe_delete_own" on storage.objects
   for delete using (
     bucket_id = 'wardrobe' and auth.uid()::text = (storage.foldername(name))[1]
@@ -151,4 +171,4 @@ $$;
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+  for each row execute function public.handle_new_user();

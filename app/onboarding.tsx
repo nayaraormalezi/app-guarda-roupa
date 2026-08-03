@@ -10,11 +10,49 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Camera, Shirt, Sparkles } from "lucide-react-native";
 import { STYLE_TAG_OPTIONS } from "@/data/types";
 import { searchCities, type GeoCity } from "@/lib/weather";
 import { useWardrobe } from "@/store/wardrobe-store";
 import { colors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
+
+const STEPS = [
+  {
+    title: "Como podemos te chamar?",
+    sub: "Usamos seu nome na Home e na Stylist.",
+  },
+  {
+    title: "Onde você mora?",
+    sub: "Para clima real e looks adequados ao dia.",
+  },
+  {
+    title: "Qual o seu estilo?",
+    sub: "Toque nas tags que combinam com você.",
+  },
+  {
+    title: "Monte seu armário",
+    sub: "Quanto mais peças reais, melhores ficam os looks.",
+  },
+] as const;
+
+const START_TIPS = [
+  {
+    icon: Camera,
+    title: "Fotografe suas peças",
+    body: "Na aba +, tire foto ou escolha da galeria. A IA sugere categoria, cor e estilo — você confirma.",
+  },
+  {
+    icon: Shirt,
+    title: "Comece com o essencial",
+    body: "Suba 5–8 peças: 2–3 superiores, 1–2 inferiores, 1 sapato e 1 casaco ou bolsa.",
+  },
+  {
+    icon: Sparkles,
+    title: "Peça um look",
+    body: "Depois, na Home ou no Stylist, peça o look do dia com a ocasião e a formalidade.",
+  },
+] as const;
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -61,7 +99,7 @@ export default function OnboardingScreen() {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   };
 
-  const finish = async () => {
+  const finish = async (goToAdd: boolean) => {
     if (!selected) {
       setError("Selecione uma cidade na lista.");
       setStep(1);
@@ -77,7 +115,11 @@ export default function OnboardingScreen() {
         latitude: selected.latitude,
         longitude: selected.longitude,
       });
-      router.replace("/(tabs)");
+      if (goToAdd) {
+        router.replace("/(tabs)/add");
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch {
       setError("Não foi possível salvar. Tente de novo.");
     } finally {
@@ -85,20 +127,19 @@ export default function OnboardingScreen() {
     }
   };
 
+  const current = STEPS[step];
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.eyebrow}>Personal Stylist</Text>
-        <Text style={styles.title}>
-          {step === 0 && "Como podemos te chamar?"}
-          {step === 1 && "Onde você mora?"}
-          {step === 2 && "Qual o seu estilo?"}
-        </Text>
-        <Text style={styles.sub}>
-          {step === 0 && "Usamos seu nome na Home e na Stylist."}
-          {step === 1 && "Para clima real e looks adequados ao dia."}
-          {step === 2 && "Toque nas tags que combinam com você."}
-        </Text>
+        <View style={styles.dots}>
+          {STEPS.map((_, i) => (
+            <View key={i} style={[styles.dot, i === step && styles.dotOn, i < step && styles.dotDone]} />
+          ))}
+        </View>
+        <Text style={styles.title}>{current.title}</Text>
+        <Text style={styles.sub}>{current.sub}</Text>
 
         {step === 0 && (
           <TextInput
@@ -165,15 +206,34 @@ export default function OnboardingScreen() {
           </View>
         )}
 
+        {step === 3 && (
+          <View style={styles.tips}>
+            {START_TIPS.map(({ icon: Icon, title, body }) => (
+              <View key={title} style={styles.tipCard}>
+                <View style={styles.tipIcon}>
+                  <Icon size={16} color={colors.gold} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tipTitle}>{title}</Text>
+                  <Text style={styles.tipBody}>{body}</Text>
+                </View>
+              </View>
+            ))}
+            <Text style={styles.tipFoot}>
+              Dica: fotos com fundo limpo e boa luz ajudam a IA a reconhecer a peça.
+            </Text>
+          </View>
+        )}
+
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         <View style={styles.actions}>
           {step > 0 && (
-            <Pressable style={styles.secondary} onPress={() => setStep((s) => s - 1)}>
+            <Pressable style={styles.secondary} onPress={() => setStep((s) => s - 1)} disabled={saving}>
               <Text style={styles.secondaryText}>Voltar</Text>
             </Pressable>
           )}
-          {step < 2 ? (
+          {step < 3 ? (
             <Pressable
               style={[
                 styles.primary,
@@ -186,9 +246,24 @@ export default function OnboardingScreen() {
               <Text style={styles.primaryText}>Continuar</Text>
             </Pressable>
           ) : (
-            <Pressable style={[styles.primary, saving && { opacity: 0.6 }]} onPress={finish} disabled={saving}>
-              <Text style={styles.primaryText}>{saving ? "Preparando…" : "Começar"}</Text>
-            </Pressable>
+            <>
+              <Pressable
+                style={[styles.primary, saving && { opacity: 0.6 }]}
+                onPress={() => finish(true)}
+                disabled={saving}
+              >
+                <Text style={styles.primaryText}>
+                  {saving ? "Preparando…" : "Adicionar minha primeira peça"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.secondary}
+                onPress={() => finish(false)}
+                disabled={saving}
+              >
+                <Text style={styles.secondaryText}>Ir para a Home</Text>
+              </Pressable>
+            </>
           )}
         </View>
       </ScrollView>
@@ -198,7 +273,7 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
-  content: { padding: 28, paddingTop: 48, paddingBottom: 40 },
+  content: { padding: 28, paddingTop: 40, paddingBottom: 40 },
   eyebrow: {
     fontFamily: fonts.mono,
     fontSize: 11,
@@ -206,8 +281,24 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: "uppercase",
   },
-  title: { fontFamily: fonts.display, fontSize: 32, color: colors.ink, marginTop: 12 },
-  sub: { fontFamily: fonts.body, fontSize: 14, color: colors.muted, marginTop: 10, marginBottom: 28, lineHeight: 20 },
+  dots: { flexDirection: "row", gap: 6, marginTop: 16, marginBottom: 4 },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.creamDark,
+  },
+  dotOn: { backgroundColor: colors.ink, width: 18 },
+  dotDone: { backgroundColor: colors.gold },
+  title: { fontFamily: fonts.display, fontSize: 30, color: colors.ink, marginTop: 12 },
+  sub: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.muted,
+    marginTop: 10,
+    marginBottom: 28,
+    lineHeight: 20,
+  },
   input: {
     backgroundColor: colors.white,
     borderRadius: 16,
@@ -237,6 +328,37 @@ const styles = StyleSheet.create({
   tagOn: { backgroundColor: colors.ink },
   tagText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
   tagTextOn: { color: colors.white },
+  tips: { gap: 12 },
+  tipCard: {
+    flexDirection: "row",
+    gap: 12,
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    padding: 16,
+  },
+  tipIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: colors.creamWarm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipTitle: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.ink },
+  tipBody: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  tipFoot: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.goldDark,
+    marginTop: 4,
+    lineHeight: 18,
+  },
   error: { fontFamily: fonts.body, fontSize: 12, color: "#B91C1C", marginTop: 16 },
   actions: { marginTop: 36, gap: 10 },
   primary: {

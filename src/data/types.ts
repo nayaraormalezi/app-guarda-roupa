@@ -104,6 +104,16 @@ export interface WishItem {
   subcategoryHint: string;
   formalityHint: FormalityId | "todos";
   gapId?: string;
+  storeName?: string;
+  buyUrl?: string;
+  imageUrl?: string;
+  createdAt: number;
+}
+
+export interface FavoriteStore {
+  id: string;
+  name: string;
+  url: string;
   createdAt: number;
 }
 
@@ -138,6 +148,7 @@ export interface PersistedState {
   savedLooks: SavedLook[];
   chatMessages: ChatMessage[];
   wishList: WishItem[];
+  favoriteStores: FavoriteStore[];
   seeded: boolean;
 }
 

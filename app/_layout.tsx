@@ -16,7 +16,7 @@ import {
 } from "@expo-google-fonts/dm-sans";
 import { DMMono_400Regular, DMMono_500Medium } from "@expo-google-fonts/dm-mono";
 import { WardrobeProvider, useWardrobe } from "@/store/wardrobe-store";
-import { AuthProvider } from "@/store/auth-store";
+import { AuthProvider, useAuth } from "@/store/auth-store";
 import { SyncBridge } from "@/components/SyncBridge";
 import { colors } from "@/theme/colors";
 import "react-native-reanimated";
@@ -30,25 +30,36 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
-  const { ready, preferences } = useWardrobe();
+  const { ready, preferences, updatePreferences } = useWardrobe();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync();
-  }, [ready]);
+    if (ready && !authLoading) SplashScreen.hideAsync();
+  }, [ready, authLoading]);
+
+  // Conta logada = onboarding já feito (não pedir de novo)
+  useEffect(() => {
+    if (!ready || authLoading || !user) return;
+    if (!preferences.onboardingComplete) {
+      void updatePreferences({ onboardingComplete: true });
+    }
+  }, [ready, authLoading, user, preferences.onboardingComplete, updatePreferences]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || authLoading) return;
     const onOnboarding = segments[0] === "onboarding";
-    if (!preferences.onboardingComplete && !onOnboarding) {
+    const needsOnboarding = !preferences.onboardingComplete && !user;
+
+    if (needsOnboarding && !onOnboarding) {
       router.replace("/onboarding");
-    } else if (preferences.onboardingComplete && onOnboarding) {
+    } else if (!needsOnboarding && onOnboarding) {
       router.replace("/(tabs)");
     }
-  }, [ready, preferences.onboardingComplete, segments, router]);
+  }, [ready, authLoading, preferences.onboardingComplete, user, segments, router]);
 
-  if (!ready) {
+  if (!ready || authLoading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.cream }}>
         <ActivityIndicator color={colors.gold} />

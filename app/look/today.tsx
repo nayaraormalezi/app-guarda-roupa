@@ -99,7 +99,8 @@ export default function TodayLookScreen() {
       today.occasionId,
       today.formalityId,
       today.temp,
-      current?.id
+      current?.id,
+      outfit
     );
   }, [swapSlot, wardrobe, today, outfit]);
 

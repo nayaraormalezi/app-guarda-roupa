@@ -29,11 +29,25 @@ export default function AccountScreen() {
     signOut,
     syncNow,
   } = useAuth();
-  const { preferences, replacePersistedState, getPersistedSnapshot } = useWardrobe();
+  const { preferences, replacePersistedState, getPersistedSnapshot, updatePreferences } = useWardrobe();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"in" | "up">("in");
+
+  const finishAuthAndSync = async () => {
+    await updatePreferences({ onboardingComplete: true });
+    const merged = await syncNow({
+      ...getPersistedSnapshot(),
+      preferences: { ...getPersistedSnapshot().preferences, onboardingComplete: true },
+    });
+    if (merged) {
+      await replacePersistedState({
+        ...merged,
+        preferences: { ...merged.preferences, onboardingComplete: true },
+      });
+    }
+  };
 
   const onAuth = async () => {
     if (!email.trim() || password.length < 6) {
@@ -44,8 +58,7 @@ export default function AccountScreen() {
     try {
       if (mode === "in") await signInWithEmail(email.trim(), password);
       else await signUpWithEmail(email.trim(), password, preferences.displayName);
-      const merged = await syncNow(getPersistedSnapshot());
-      if (merged) await replacePersistedState(merged);
+      await finishAuthAndSync();
       Alert.alert(
         "Conta",
         mode === "in"
@@ -64,8 +77,7 @@ export default function AccountScreen() {
     setBusy(true);
     try {
       await signInWithApple();
-      const merged = await syncNow(getPersistedSnapshot());
-      if (merged) await replacePersistedState(merged);
+      await finishAuthAndSync();
       Alert.alert("Conta", "Login Apple e sync concluídos.");
       router.back();
     } catch (e) {
@@ -109,12 +121,16 @@ export default function AccountScreen() {
         <Text style={styles.title}>{user ? "Sua conta" : "Entrar"}</Text>
         <Text style={styles.sub}>
           {user
-            ? `Conectada como ${user.email ?? user.id.slice(0, 8)}. Sync mantém closet e fotos na nuvem.`
+            ? "Sync mantém closet e fotos na nuvem. Use Sair para encerrar a sessão neste aparelho."
             : "Crie conta para sincronizar entre aparelhos. A IA usa Edge Functions no servidor."}
         </Text>
 
         {user ? (
           <>
+            <View style={styles.userCard}>
+              <Text style={styles.userLabel}>Conectada como</Text>
+              <Text style={styles.userEmail}>{user.email ?? user.id.slice(0, 8)}</Text>
+            </View>
             <Pressable style={styles.primary} onPress={onSync} disabled={busy || syncing}>
               {busy || syncing ? (
                 <ActivityIndicator color={colors.white} />
@@ -123,13 +139,35 @@ export default function AccountScreen() {
               )}
             </Pressable>
             <Pressable
-              style={styles.secondary}
-              onPress={async () => {
-                await signOut();
-                Alert.alert("Saiu", "Sessão encerrada. Dados locais permanecem neste aparelho.");
+              style={styles.logout}
+              disabled={busy}
+              onPress={() => {
+                Alert.alert(
+                  "Sair da conta",
+                  "Encerrar a sessão neste aparelho? Os dados locais permanecem.",
+                  [
+                    { text: "Cancelar", style: "cancel" },
+                    {
+                      text: "Sair",
+                      style: "destructive",
+                      onPress: async () => {
+                        setBusy(true);
+                        try {
+                          await signOut();
+                          Alert.alert("Sessão encerrada", "Você saiu da conta.");
+                          router.back();
+                        } catch (e) {
+                          Alert.alert("Erro", e instanceof Error ? e.message : "Falha ao sair");
+                        } finally {
+                          setBusy(false);
+                        }
+                      },
+                    },
+                  ]
+                );
               }}
             >
-              <Text style={styles.secondaryText}>Sair</Text>
+              <Text style={styles.logoutText}>Sair da conta</Text>
             </Pressable>
           </>
         ) : (
@@ -203,6 +241,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.white },
+  userCard: {
+    marginTop: 18,
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 14,
+  },
+  userLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  userEmail: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.ink, marginTop: 4 },
   secondary: {
     marginTop: 12,
     borderWidth: 1,
@@ -213,6 +265,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   secondaryText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.ink },
+  logout: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "rgba(185,28,28,0.25)",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    backgroundColor: colors.white,
+  },
+  logoutText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#B91C1C" },
   switch: {
     marginTop: 16,
     textAlign: "center",
