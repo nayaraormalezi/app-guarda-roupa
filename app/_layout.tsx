@@ -79,8 +79,6 @@ function RootNavigator() {
   useEffect(() => {
     if (!ready || authLoading) return;
     const onOnboarding = segments[0] === "onboarding";
-    const onStorybook = segments[0] === "storybook";
-    if (onStorybook) return;
     const needsOnboarding = !preferences.onboardingComplete && !user;
 
     if (needsOnboarding && !onOnboarding) {
@@ -131,9 +129,6 @@ function RootNavigator() {
           options={{ headerShown: true, title: "Look de hoje", headerBackTitle: "Voltar" }}
         />
         <Stack.Screen name="look/[id]" options={{ headerShown: true, title: "Look", headerBackTitle: "Voltar" }} />
-        <Stack.Protected guard={__DEV__}>
-          <Stack.Screen name="storybook" options={{ headerShown: false, title: "Storybook" }} />
-        </Stack.Protected>
       </Stack>
     </>
   );

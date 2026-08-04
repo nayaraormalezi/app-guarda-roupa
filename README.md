@@ -26,11 +26,11 @@ Publique `storybook-static/` em Vercel, Netlify, GitHub Pages ou Chromatic.
 npm run deploy-storybook   # rebuild + publica no Pages
 ```
 
-### Native (no app)
+### Native (opcional, app isolado)
 ```bash
 npm run storybook:native
 ```
-No app: **Mais → Storybook** ou `/storybook`.
+Isso sobe o Expo **só** com Storybook on-device (não misture com o app normal).
 
 Stories em `src/**/*.stories.tsx`. Web: `.storybook/` · Native: `.rnstorybook/`.
 
