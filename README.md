@@ -10,6 +10,30 @@ cp .env.example .env   # preencha Gemini e/ou Supabase
 npx expo start -c
 ```
 
+## Storybook (design system)
+
+### Web (link / browser) — principal
+```bash
+npm run storybook          # http://localhost:6006
+npm run build-storybook    # gera pasta storybook-static/
+```
+
+Publique `storybook-static/` em Vercel, Netlify, GitHub Pages ou Chromatic.
+
+**Link público (GitHub Pages):** https://nayaraormalezi.github.io/app-guarda-roupa/
+
+```bash
+npm run deploy-storybook   # rebuild + publica no Pages
+```
+
+### Native (no app)
+```bash
+npm run storybook:native
+```
+No app: **Mais → Storybook** ou `/storybook`.
+
+Stories em `src/**/*.stories.tsx`. Web: `.storybook/` · Native: `.rnstorybook/`.
+
 ## Features
 - Closet local + filtros
 - Look do dia com troca de peça

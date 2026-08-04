@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BarChart2, ShoppingBag, Sparkles, Tag, User } from "lucide-react-native";
+import { BarChart2, BookOpen, ShoppingBag, Sparkles, Tag, User } from "lucide-react-native";
 import { useWardrobe } from "@/store/wardrobe-store";
 import { useTheme } from "@/theme/ThemeContext";
 import type { ThemeColors } from "@/theme/colors";
@@ -93,6 +93,18 @@ export default function MoreScreen() {
       color: colors.creamDark,
       ic: colors.muted,
     },
+    ...(__DEV__
+      ? [
+          {
+            href: "/storybook" as const,
+            label: "Storybook",
+            sub: "Design system",
+            icon: BookOpen,
+            color: colors.creamWarm,
+            ic: colors.gold,
+          },
+        ]
+      : []),
   ];
 
   const onPromoScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {

@@ -7,12 +7,21 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "storybook": "storybook dev -p 6006",
+    "storybook:web": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static",
+    "deploy-storybook": "STORYBOOK_BASE=/app-guarda-roupa/ npm run build-storybook && gh-pages -d storybook-static -b gh-pages -m \"deploy storybook\"",
+    "storybook:native": "EXPO_PUBLIC_STORYBOOK_ENABLED=true expo start",
+    "storybook:ios": "EXPO_PUBLIC_STORYBOOK_ENABLED=true expo start --ios",
+    "storybook:android": "EXPO_PUBLIC_STORYBOOK_ENABLED=true expo start --android",
+    "storybook-generate": "sb-rn-get-stories --config-path ./.rnstorybook"
   },
   "dependencies": {
     "@expo-google-fonts/dm-mono": "^0.4.2",
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo-google-fonts/playfair-display": "^0.4.2",
+    "@gorhom/bottom-sheet": "^5.2.14",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@supabase/supabase-js": "^2.111.0",
@@ -36,6 +45,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
@@ -44,7 +54,17 @@
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "^10.5.6",
+    "@storybook/addon-docs": "^10.5.6",
+    "@storybook/addon-ondevice-actions": "^10.5.4",
+    "@storybook/addon-ondevice-controls": "^10.5.4",
+    "@storybook/react": "^10.5.6",
+    "@storybook/react-native": "^10.5.4",
+    "@storybook/react-native-web-vite": "^10.5.6",
     "@types/react": "~19.1.10",
-    "typescript": "~5.9.2"
+    "gh-pages": "^6.3.0",
+    "storybook": "^10.5.6",
+    "typescript": "~5.9.2",
+    "vite": "^6.4.3"
   }
 }
