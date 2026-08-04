@@ -44,7 +44,18 @@ Stories em `src/**/*.stories.tsx`. Web: `.storybook/` · Native: `.rnstorybook/`
 - Notificações opcionais do look de amanhã
 
 ## Backend
-Veja `supabase/schema.sql` e `supabase/functions/ai`. Detalhes de store em `docs/APP_STORE.md`. Privacidade em `PRIVACY.md`.
+Veja `supabase/schema.sql` e `supabase/functions/ai`. Privacidade em `PRIVACY.md`.
+
+## Beta (convidados baixam o app)
+Guia completo: [`docs/BETA_TESTING.md`](docs/BETA_TESTING.md)
+
+```bash
+npx eas-cli login
+npx eas-cli init
+npm run build:preview:android   # gera link de APK
+```
+
+Produção / TestFlight: [`docs/APP_STORE.md`](docs/APP_STORE.md).
 
 ## Bundle
 `com.nayara.personalstylist`

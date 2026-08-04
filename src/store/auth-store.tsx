@@ -53,20 +53,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     const supabase = getSupabase();
     if (!supabase) throw new Error("Supabase não configurado");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    if (data.session) setSession(data.session);
   }, []);
 
   const signUpWithEmail = useCallback(
     async (email: string, password: string, displayName?: string) => {
       const supabase = getSupabase();
       if (!supabase) throw new Error("Supabase não configurado");
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { display_name: displayName ?? "" } },
       });
       if (error) throw error;
+      if (data.session) setSession(data.session);
     },
     []
   );
@@ -88,12 +90,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       nonce: hashedNonce,
     });
     if (!credential.identityToken) throw new Error("Token Apple ausente");
-    const { error } = await supabase.auth.signInWithIdToken({
+    const { data, error } = await supabase.auth.signInWithIdToken({
       provider: "apple",
       token: credential.identityToken,
       nonce: rawNonce,
     });
     if (error) throw error;
+    if (data.session) setSession(data.session);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -104,12 +107,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncNow = useCallback(
     async (local: PersistedState): Promise<PersistedState | null> => {
-      if (!session?.user?.id) return null;
+      const supabase = getSupabase();
+      if (!supabase) return null;
+      // Prefer live auth session — React state can lag right after login
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user?.id ?? session?.user?.id;
+      if (!userId) return null;
       setSyncing(true);
       try {
-        const cloud = await pullStateFromCloud(session.user.id);
+        const cloud = await pullStateFromCloud(userId);
         const merged = cloud ? mergeLocalAndCloud(local, cloud) : local;
-        await pushStateToCloud(merged, session.user.id);
+        await pushStateToCloud(merged, userId);
         setLastSyncAt(Date.now());
         return merged;
       } finally {

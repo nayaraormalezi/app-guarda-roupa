@@ -147,7 +147,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
             ...prefs,
             latitude: found[0].latitude,
             longitude: found[0].longitude,
-            city: found[0].name,
+            // Keep the label the user chose; only fill missing coords.
           };
         }
       } catch {

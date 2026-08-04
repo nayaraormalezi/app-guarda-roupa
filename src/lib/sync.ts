@@ -220,6 +220,17 @@ export async function pullStateFromCloud(userId: string): Promise<Partial<Persis
     supabase.from("chat_messages").select("*").eq("user_id", userId).order("created_at", { ascending: true }),
   ]);
 
+  const firstError =
+    profileRes.error ||
+    piecesRes.error ||
+    looksRes.error ||
+    weekRes.error ||
+    wishRes.error ||
+    chatRes.error;
+  if (firstError) {
+    throw new Error(firstError.message || "Falha ao ler dados da nuvem");
+  }
+
   const profile = profileRes.data;
   const pieces = (piecesRes.data ?? []).map(
     (i): ClothingItem => ({
@@ -326,34 +337,48 @@ function mergeChatMessages(local: ChatMessage[], cloud?: ChatMessage[]): ChatMes
     .slice(-80);
 }
 
+/** Empty local (or demo seed only) restores from cloud; otherwise local list wins (incl. deletes). */
+function pickSyncedList<T extends { id: string }>(
+  local: T[],
+  cloud: T[] | undefined,
+  opts?: { treatAsEmpty?: boolean }
+): T[] {
+  const localEmpty = !local.length || Boolean(opts?.treatAsEmpty);
+  if (localEmpty && cloud?.length) return cloud;
+  if (!cloud?.length) return local;
+  if (localEmpty) return local;
+  // Both have real data: union by id, local wins on conflict (preserves offline edits + cloud extras)
+  const byId = new Map<string, T>();
+  for (const item of cloud) byId.set(item.id, item);
+  for (const item of local) byId.set(item.id, item);
+  return Array.from(byId.values());
+}
+
+const DEMO_SEED_IDS = new Set(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]);
+
+function isDemoSeedWardrobe(items: ClothingItem[]): boolean {
+  return items.length > 0 && items.every((i) => DEMO_SEED_IDS.has(i.id));
+}
+
 export function mergeLocalAndCloud(
   local: PersistedState,
   cloud: Partial<PersistedState>
 ): PersistedState {
-  // New device / empty local → restore from cloud. Otherwise local is source of truth (incl. deletions).
-  const wardrobe =
-    local.seeded || local.wardrobe.length > 0
-      ? local.wardrobe
-      : cloud.wardrobe?.length
-        ? cloud.wardrobe
-        : local.wardrobe;
-
-  const savedLooks =
-    local.seeded || local.savedLooks.length > 0
-      ? local.savedLooks
-      : cloud.savedLooks?.length
-        ? cloud.savedLooks
-        : local.savedLooks;
-
-  const wishList =
-    local.seeded || local.wishList.length > 0
-      ? local.wishList
-      : cloud.wishList?.length
-        ? cloud.wishList
-        : local.wishList;
+  const wardrobe = pickSyncedList(local.wardrobe, cloud.wardrobe, {
+    treatAsEmpty: isDemoSeedWardrobe(local.wardrobe),
+  });
+  const savedLooks = pickSyncedList(local.savedLooks, cloud.savedLooks);
+  const wishList = pickSyncedList(local.wishList, cloud.wishList);
 
   // Always roll onto “today” and merge by date — local outfitRefs/used win over cloud.
   const weekPlan = mergeWeekPlans(local.weekPlan, cloud.weekPlan);
+
+  const favoriteStores =
+    (local.favoriteStores?.length ?? 0) > 0
+      ? local.favoriteStores ?? []
+      : cloud.favoriteStores?.length
+        ? cloud.favoriteStores
+        : local.favoriteStores ?? [];
 
   return {
     ...local,
@@ -361,27 +386,26 @@ export function mergeLocalAndCloud(
     savedLooks,
     weekPlan,
     wishList,
-    // After first local seed/write, local favoriteStores win (incl. deletions → []).
-    favoriteStores: local.seeded
-      ? local.favoriteStores ?? []
-      : cloud.favoriteStores?.length
-        ? cloud.favoriteStores
-        : local.favoriteStores ?? [],
+    favoriteStores,
     // Union by id — never let cloud wipe local conversation
     chatMessages: mergeChatMessages(local.chatMessages, cloud.chatMessages),
     preferences: cloud.preferences
       ? {
-          ...local.preferences,
+          // Cloud fills gaps; local preferences win (city/coords/name the user just set).
           ...cloud.preferences,
+          ...local.preferences,
           onboardingComplete:
             Boolean(local.preferences.onboardingComplete) ||
             Boolean(cloud.preferences.onboardingComplete),
-          displayName: cloud.preferences.displayName || local.preferences.displayName,
-          city: cloud.preferences.city || local.preferences.city,
+          displayName: local.preferences.displayName || cloud.preferences.displayName || "",
+          city: local.preferences.city || cloud.preferences.city || "",
           styleTags:
-            cloud.preferences.styleTags?.length
-              ? cloud.preferences.styleTags
-              : local.preferences.styleTags,
+            local.preferences.styleTags?.length
+              ? local.preferences.styleTags
+              : cloud.preferences.styleTags ?? [],
+          latitude: local.preferences.latitude ?? cloud.preferences.latitude,
+          longitude: local.preferences.longitude ?? cloud.preferences.longitude,
+          theme: local.preferences.theme ?? cloud.preferences.theme,
         }
       : local.preferences,
     seeded: true,

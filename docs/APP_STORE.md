@@ -1,17 +1,31 @@
 # App Store / TestFlight — Personal Stylist
 
-## Pré-requisitos
+## Beta / convidados (antes da loja)
+
+Para enviar o app a testers por **link de instalação** (Android APK + iOS interno), siga:
+
+**[`docs/BETA_TESTING.md`](BETA_TESTING.md)**
+
+```bash
+npx eas-cli login
+npx eas-cli init
+npm run build:preview:android
+```
+
+---
+
+## Pré-requisitos (produção / TestFlight)
 1. Conta Apple Developer
-2. `eas login` e `eas build:configure` (preenche `extra.eas.projectId`)
+2. `npx eas-cli login` e `npx eas-cli init` (preenche `extra.eas.projectId`)
 3. Schema + Edge Function no Supabase (`supabase/schema.sql`, `supabase/functions/ai`)
-4. Secrets: `GEMINI_API_KEY` no Supabase; `EXPO_PUBLIC_SUPABASE_*` no EAS Secrets
+4. Env: `GEMINI_API_KEY` no Supabase; `EXPO_PUBLIC_*` via `npx eas-cli env:set` (ver BETA_TESTING.md)
 5. URL pública da política: hospede `PRIVACY.md` (ou `app/privacy`) e coloque no App Store Connect
 
 ## Build
 ```bash
-eas build --platform ios --profile preview   # TestFlight interno / ad hoc
-eas build --platform ios --profile production
-eas submit --platform ios --profile production
+npm run build:preview:ios          # distribuição interna / ad hoc
+npm run build:production:ios
+npx eas-cli submit --platform ios --profile production
 ```
 
 ## Assets

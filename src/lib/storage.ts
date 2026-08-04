@@ -59,7 +59,13 @@ function defaultWelcome(displayName: string): ChatMessage {
 }
 
 function emptyState(): PersistedState {
-  const seed = __DEV__ || process.env.EXPO_PUBLIC_USE_SEED === "1";
+  // Never inject demo seed when Supabase is configured — login should restore cloud data.
+  const supabaseOn = Boolean(
+    (process.env.EXPO_PUBLIC_SUPABASE_URL || "").trim() &&
+      (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "").trim()
+  );
+  const seed =
+    !supabaseOn && (__DEV__ || process.env.EXPO_PUBLIC_USE_SEED === "1");
   return {
     wardrobe: seed ? SEED_WARDROBE : [],
     weekPlan: buildWeekPlan(),

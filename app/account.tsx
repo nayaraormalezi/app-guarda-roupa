@@ -94,8 +94,17 @@ export default function AccountScreen() {
     setBusy(true);
     try {
       const merged = await syncNow(getPersistedSnapshot());
-      if (merged) await replacePersistedState(merged);
-      Alert.alert("Sync", "Dados atualizados com a nuvem.");
+      if (!merged) {
+        Alert.alert("Sync", "Faça login para sincronizar com a nuvem.");
+        return;
+      }
+      await replacePersistedState(merged);
+      const looks = merged.savedLooks.length;
+      const pieces = merged.wardrobe.length;
+      Alert.alert(
+        "Sync",
+        `Dados atualizados: ${pieces} peça${pieces === 1 ? "" : "s"}, ${looks} look${looks === 1 ? "" : "s"}.`
+      );
     } catch (e) {
       Alert.alert("Erro", e instanceof Error ? e.message : "Falha no sync");
     } finally {

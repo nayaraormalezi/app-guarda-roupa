@@ -13,7 +13,7 @@ const PUSH_DEBOUNCE_MS = 2_500;
  * Keeps the logged-in account in sync automatically:
  * - full sync on launch, foreground, and reconnect
  * - periodic full sync while online
- * - debounced cloud push after local data changes
+ * - debounced cloud push after local data changes (only after a successful pull)
  */
 export function SyncBridge() {
   const { user, syncNow } = useAuth();
@@ -32,7 +32,12 @@ export function SyncBridge() {
 
   const lastFullSync = useRef(0);
   const syncingRef = useRef(false);
+  const hasPulledRef = useRef(false);
   const userId = user?.id;
+
+  useEffect(() => {
+    hasPulledRef.current = false;
+  }, [userId]);
 
   const runFullSync = async (force = false) => {
     if (!ready || !userId || syncingRef.current) return;
@@ -46,9 +51,12 @@ export function SyncBridge() {
     lastFullSync.current = now;
     try {
       const merged = await syncNow(getPersistedSnapshot());
-      if (merged) await replacePersistedState(merged);
+      if (merged) {
+        await replacePersistedState(merged);
+        hasPulledRef.current = true;
+      }
     } catch {
-      // keep offline cache
+      // keep offline cache — do not mark pulled (avoids orphan wipe push)
     } finally {
       syncingRef.current = false;
     }
@@ -81,10 +89,11 @@ export function SyncBridge() {
 
   // Debounced upload when local wardrobe data changes (keeps cloud fresh without pull races)
   useEffect(() => {
-    if (!ready || !userId) return;
+    if (!ready || !userId || !hasPulledRef.current) return;
 
     const handle = setTimeout(() => {
       void (async () => {
+        if (!hasPulledRef.current) return;
         const net = await NetInfo.fetch();
         if (!net.isConnected) return;
         try {
