@@ -21,7 +21,7 @@ import {
   normalizeOccasionId,
   outfitToRefs,
 } from "@/data/types";
-import { buildWeekPlan, dayPlanId } from "@/data/seed";
+import { buildWeekPlan, dayPlanId, rollWeekForward } from "@/data/seed";
 import { createId, deletePhotoIfLocal, loadState, savePhotoFromUri, saveState } from "@/lib/storage";
 import { outfitPieceIds } from "@/lib/outfit-engine";
 import { applyPieceUseDay, dateKeyFromDayId } from "@/lib/piece-use";
@@ -98,7 +98,8 @@ interface WardrobeContextValue {
   getItem: (id: string) => ClothingItem | undefined;
   todayLookVariant: number;
   todayExcludeIds: string[];
-  refreshTodayLook: (currentOutfit?: Outfit | null) => void;
+  /** Bumps variant once and returns the values to pass into buildOutfit. */
+  refreshTodayLook: (currentOutfit?: Outfit | null) => { variant: number; excludeIds: string[] };
   appendChatMessages: (msgs: ChatMessage[]) => Promise<void>;
   replaceChatMessages: (msgs: ChatMessage[]) => Promise<void>;
   addWish: (input: Omit<WishItem, "id" | "createdAt">) => Promise<WishItem>;
@@ -126,6 +127,8 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
   const [todayLookVariant, setTodayLookVariant] = useState(0);
   const [todayExcludeIds, setTodayExcludeIds] = useState<string[]>([]);
   const stateRef = useRef<PersistedState | null>(null);
+  const todayLookVariantRef = useRef(0);
+  todayLookVariantRef.current = todayLookVariant;
 
   const persist = useCallback(async (next: PersistedState) => {
     stateRef.current = next;
@@ -153,7 +156,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
     }
     const { latitude, longitude } = prefs;
     if (latitude == null || longitude == null) {
-      return { ...base, preferences: prefs };
+      return { ...base, preferences: prefs, weekPlan: rollWeekForward(base.weekPlan) };
     }
     try {
       setWeatherLoading(true);
@@ -183,7 +186,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
       });
       return { ...base, preferences: prefs, weekPlan: merged };
     } catch {
-      return { ...base, preferences: prefs };
+      return { ...base, preferences: prefs, weekPlan: rollWeekForward(base.weekPlan) };
     } finally {
       setWeatherLoading(false);
     }
@@ -193,6 +196,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
     (async () => {
       let loaded = await loadState();
+      loaded = { ...loaded, weekPlan: rollWeekForward(loaded.weekPlan) };
       if (loaded.preferences.onboardingComplete && loaded.preferences.latitude != null) {
         loaded = await applyWeather(loaded);
       }
@@ -236,11 +240,7 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
   const getTodayPlan = useCallback((): DayPlan | undefined => {
     const plan = state?.weekPlan ?? [];
     const todayKey = dayPlanId(new Date());
-    return (
-      plan.find((d) => d.id === todayKey) ??
-      plan.find((d) => d.id.replace(/^day-/, "") === todayKey.replace(/^day-/, "")) ??
-      plan[0]
-    );
+    return plan.find((d) => d.id === todayKey);
   }, [state?.weekPlan]);
 
   const addItem = useCallback(
@@ -560,12 +560,12 @@ export function WardrobeProvider({ children }: { children: React.ReactNode }) {
   );
 
   const refreshTodayLook = useCallback((currentOutfit?: Outfit | null) => {
-    if (currentOutfit) {
-      setTodayExcludeIds(outfitPieceIds(currentOutfit));
-    } else {
-      setTodayExcludeIds([]);
-    }
-    setTodayLookVariant((v) => v + 1);
+    const excludeIds = currentOutfit ? outfitPieceIds(currentOutfit) : [];
+    const variant = todayLookVariantRef.current + 1;
+    todayLookVariantRef.current = variant;
+    setTodayExcludeIds(excludeIds);
+    setTodayLookVariant(variant);
+    return { variant, excludeIds };
   }, []);
 
   const appendChatMessages = useCallback(

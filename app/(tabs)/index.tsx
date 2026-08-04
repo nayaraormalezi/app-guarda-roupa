@@ -22,7 +22,7 @@ import {
 import { CityPickerSheet } from "@/components/CityPickerSheet";
 import { LookContextSheet } from "@/components/LookContextSheet";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { buildOutfit, countCombinations, outfitPieceIds, outfitPieces } from "@/lib/outfit-engine";
+import { buildOutfit, countCombinations, outfitPieces } from "@/lib/outfit-engine";
 import { defaultFormalityFor, findSavedLookForOutfit, getFormality, getOccasion } from "@/data/types";
 import { weatherLabelFromEmoji } from "@/lib/weather";
 import { useTheme } from "@/theme/ThemeContext";
@@ -121,14 +121,12 @@ export default function HomeScreen() {
       refreshTodayLook(outfit);
       return;
     }
-    const nextExclude = outfit ? outfitPieceIds(outfit) : [];
-    const nextVariant = todayLookVariant + 1;
-    refreshTodayLook(outfit);
+    const { variant, excludeIds } = refreshTodayLook(outfit);
     const result = buildOutfit(wardrobe, today.occasionId, today.temp, {
       formality: today.formalityId,
       tempMin: today.tempMin,
-      variant: nextVariant,
-      excludeIds: nextExclude,
+      variant,
+      excludeIds,
     });
     await setDayOutfit(today.id, result.outfit ?? null);
   };
@@ -136,28 +134,26 @@ export default function HomeScreen() {
   const onOccasionChange = async (id: Parameters<typeof setDayOccasion>[1]) => {
     if (!today) return;
     const formalityId = defaultFormalityFor(id);
-    const nextVariant = todayLookVariant + 1;
     await setDayOccasion(today.id, id);
-    refreshTodayLook(null);
+    const { variant, excludeIds } = refreshTodayLook(null);
     const result = buildOutfit(wardrobe, id, today.temp, {
       formality: formalityId,
       tempMin: today.tempMin,
-      variant: nextVariant,
-      excludeIds: [],
+      variant,
+      excludeIds,
     });
     await setDayOutfit(today.id, result.outfit ?? null);
   };
 
   const onFormalityChange = async (id: Parameters<typeof setDayFormality>[1]) => {
     if (!today) return;
-    const nextVariant = todayLookVariant + 1;
     await setDayFormality(today.id, id);
-    refreshTodayLook(null);
+    const { variant, excludeIds } = refreshTodayLook(null);
     const result = buildOutfit(wardrobe, today.occasionId, today.temp, {
       formality: id,
       tempMin: today.tempMin,
-      variant: nextVariant,
-      excludeIds: [],
+      variant,
+      excludeIds,
     });
     await setDayOutfit(today.id, result.outfit ?? null);
   };

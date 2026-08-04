@@ -54,6 +54,30 @@ export function buildWeekPlan(
   });
 }
 
+/** Roll the week so it always starts at `from` (today), preserving user data by calendar date. */
+export function rollWeekForward(prev: DayPlan[], from = new Date()): DayPlan[] {
+  const todayKey = dayPlanId(from);
+  if (prev.some((d) => d.id === todayKey)) return prev;
+
+  const byDate = new Map(prev.map((d) => [d.id.replace(/^day-/, ""), d] as const));
+  return buildWeekPlan(from).map((day) => {
+    const key = day.id.replace(/^day-/, "");
+    const old = byDate.get(key);
+    if (!old) return day;
+    return {
+      ...day,
+      occasionId: normalizeOccasionId(old.occasionId ?? day.occasionId),
+      formalityId: normalizeFormalityId(old.formalityId ?? day.formalityId),
+      weather: old.weather || day.weather,
+      temp: old.temp ?? day.temp,
+      tempMax: old.tempMax ?? day.tempMax,
+      tempMin: old.tempMin ?? day.tempMin,
+      outfitRefs: old.outfitRefs,
+      used: old.used,
+    };
+  });
+}
+
 export function normalizeDayPlan(day: Partial<DayPlan> & Pick<DayPlan, "id" | "day" | "date">): DayPlan {
   const occasionId = normalizeOccasionId(day.occasionId);
   const formalityId = day.formalityId

@@ -7,7 +7,39 @@ import type {
   SavedLook,
   WishItem,
 } from "@/data/types";
+import { buildWeekPlan, rollWeekForward } from "@/data/seed";
 import { getSupabase } from "@/lib/supabase";
+
+function dateKeyFromDay(d: DayPlan): string {
+  return d.id.replace(/^day-/, "");
+}
+
+/** Merge weeks by calendar date onto a rolling “today” skeleton. Local planned looks win. */
+export function mergeWeekPlans(local: DayPlan[], cloud?: DayPlan[]): DayPlan[] {
+  const localByDate = new Map(local.map((d) => [dateKeyFromDay(d), d] as const));
+  const cloudByDate = new Map((cloud ?? []).map((d) => [dateKeyFromDay(d), d] as const));
+  const skeleton = rollWeekForward(
+    local.length ? local : cloud?.length ? cloud : buildWeekPlan()
+  );
+
+  return skeleton.map((day) => {
+    const key = dateKeyFromDay(day);
+    const L = localByDate.get(key);
+    const C = cloudByDate.get(key);
+    if (!L && !C) return day;
+    return {
+      ...day,
+      occasionId: L?.occasionId ?? C?.occasionId ?? day.occasionId,
+      formalityId: L?.formalityId ?? C?.formalityId ?? day.formalityId,
+      weather: L?.weather || C?.weather || day.weather,
+      temp: L?.temp ?? C?.temp ?? day.temp,
+      tempMax: L?.tempMax ?? C?.tempMax ?? day.tempMax,
+      tempMin: L?.tempMin ?? C?.tempMin ?? day.tempMin,
+      outfitRefs: L?.outfitRefs ?? C?.outfitRefs,
+      used: L?.used ?? C?.used,
+    };
+  });
+}
 
 async function uploadPiecePhoto(userId: string, item: ClothingItem): Promise<string> {
   const supabase = getSupabase();
@@ -320,13 +352,8 @@ export function mergeLocalAndCloud(
         ? cloud.wishList
         : local.wishList;
 
-  // Device week plan (looks planejados) wins — cloud was wiping outfitRefs on sync
-  const weekPlan =
-    local.seeded || local.weekPlan.length > 0
-      ? local.weekPlan
-      : cloud.weekPlan?.length
-        ? cloud.weekPlan
-        : local.weekPlan;
+  // Always roll onto “today” and merge by date — local outfitRefs/used win over cloud.
+  const weekPlan = mergeWeekPlans(local.weekPlan, cloud.weekPlan);
 
   return {
     ...local,
@@ -334,7 +361,12 @@ export function mergeLocalAndCloud(
     savedLooks,
     weekPlan,
     wishList,
-    favoriteStores: cloud.favoriteStores?.length ? cloud.favoriteStores : local.favoriteStores,
+    // After first local seed/write, local favoriteStores win (incl. deletions → []).
+    favoriteStores: local.seeded
+      ? local.favoriteStores ?? []
+      : cloud.favoriteStores?.length
+        ? cloud.favoriteStores
+        : local.favoriteStores ?? [],
     // Union by id — never let cloud wipe local conversation
     chatMessages: mergeChatMessages(local.chatMessages, cloud.chatMessages),
     preferences: cloud.preferences

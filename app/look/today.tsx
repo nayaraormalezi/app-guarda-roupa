@@ -22,7 +22,6 @@ import {
   alternativesForSlot,
   buildOutfit,
   emptyOutfitSlots,
-  outfitPieceIds,
   outfitPieces,
   removeOutfitSlot,
   slotLabel,
@@ -162,14 +161,12 @@ export default function TodayLookScreen() {
       refreshTodayLook(outfit);
       return;
     }
-    const nextExclude = outfit ? outfitPieceIds(outfit) : [];
-    const nextVariant = todayLookVariant + 1;
-    refreshTodayLook(outfit);
+    const { variant, excludeIds } = refreshTodayLook(outfit);
     await buildAndPersist({
       occasionId: today.occasionId,
       formalityId: today.formalityId,
-      variant: nextVariant,
-      excludeIds: nextExclude,
+      variant,
+      excludeIds,
     });
   };
 
@@ -226,25 +223,23 @@ export default function TodayLookScreen() {
               formalityId={today.formalityId}
               onOccasionChange={async (id) => {
                 const formalityId = defaultFormalityFor(id);
-                const nextVariant = todayLookVariant + 1;
                 await setDayOccasion(today.id, id);
-                refreshTodayLook(null);
+                const { variant, excludeIds } = refreshTodayLook(null);
                 await buildAndPersist({
                   occasionId: id,
                   formalityId,
-                  variant: nextVariant,
-                  excludeIds: [],
+                  variant,
+                  excludeIds,
                 });
               }}
               onFormalityChange={async (id) => {
-                const nextVariant = todayLookVariant + 1;
                 await setDayFormality(today.id, id);
-                refreshTodayLook(null);
+                const { variant, excludeIds } = refreshTodayLook(null);
                 await buildAndPersist({
                   occasionId: today.occasionId,
                   formalityId: id,
-                  variant: nextVariant,
-                  excludeIds: [],
+                  variant,
+                  excludeIds,
                 });
               }}
             />

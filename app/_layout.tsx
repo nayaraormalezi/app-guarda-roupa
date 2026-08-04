@@ -58,7 +58,7 @@ function ThemedRoot({ children }: { children: React.ReactNode }) {
 }
 
 function RootNavigator() {
-  const { ready, preferences, updatePreferences } = useWardrobe();
+  const { ready, preferences } = useWardrobe();
   const { user, loading: authLoading } = useAuth();
   const { colors, scheme } = useTheme();
   const router = useRouter();
@@ -69,23 +69,16 @@ function RootNavigator() {
   }, [ready, authLoading]);
 
   useEffect(() => {
-    if (!ready || authLoading || !user) return;
-    if (!preferences.onboardingComplete) {
-      void updatePreferences({ onboardingComplete: true });
-    }
-  }, [ready, authLoading, user, preferences.onboardingComplete, updatePreferences]);
-
-  useEffect(() => {
     if (!ready || authLoading) return;
     const onOnboarding = segments[0] === "onboarding";
-    const needsOnboarding = !preferences.onboardingComplete && !user;
+    const needsOnboarding = !preferences.onboardingComplete;
 
     if (needsOnboarding && !onOnboarding) {
       router.replace("/onboarding");
     } else if (!needsOnboarding && onOnboarding) {
       router.replace("/(tabs)");
     }
-  }, [ready, authLoading, preferences.onboardingComplete, user, segments, router]);
+  }, [ready, authLoading, preferences.onboardingComplete, segments, router]);
 
   const screenOptions = useMemo(
     () => ({
