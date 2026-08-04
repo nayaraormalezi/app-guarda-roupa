@@ -4,6 +4,7 @@ import type { Outfit } from "@/data/types";
 import { outfitPieces } from "@/lib/outfit-engine";
 import { useTheme } from "@/theme/ThemeContext";
 import type { ThemeColors } from "@/theme/colors";
+import { radius } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function OutfitCardView({
@@ -17,14 +18,17 @@ export function OutfitCardView({
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const pieces = outfitPieces(outfit);
+  const pieces = outfitPieces(outfit).slice(0, 4);
   return (
     <View style={styles.card}>
       <View style={styles.grid}>
         {pieces.map(({ label, item }) => (
           <View key={`${label}-${item.id}`} style={styles.cell}>
             <Image source={{ uri: item.img }} style={styles.img} />
-            <Text style={styles.label}>{label}</Text>
+            <Text style={styles.cat}>{label.toUpperCase()}</Text>
+            <Text style={styles.name} numberOfLines={1}>
+              {item.name}
+            </Text>
           </View>
         ))}
       </View>
@@ -48,62 +52,75 @@ export function OutfitCardView({
 
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  cell: {
-    width: "25%",
-    backgroundColor: colors.white,
-  },
-  img: {
-    width: "100%",
-    height: 76,
-    backgroundColor: colors.creamDark,
-  },
-  label: {
-    fontFamily: fonts.mono,
-    fontSize: 8,
-    color: colors.muted,
-    textAlign: "center",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    paddingVertical: 6,
-  },
-  actions: {
-    flexDirection: "row",
-    gap: 8,
-    padding: 12,
-  },
-  primary: {
-    flex: 1,
-    backgroundColor: colors.ink,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  primaryText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    color: colors.white,
-  },
-  secondary: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  secondaryText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    color: colors.ink,
-  },
+    card: {
+      backgroundColor: colors.cream,
+      borderRadius: radius.card,
+      overflow: "hidden",
+    },
+    grid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+    cell: {
+      width: "48%",
+      flexGrow: 1,
+      backgroundColor: colors.white,
+      borderRadius: radius.card,
+      padding: 8,
+      paddingBottom: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    img: {
+      width: "100%",
+      aspectRatio: 1,
+      borderRadius: radius.input,
+      backgroundColor: colors.creamDark,
+    },
+    cat: {
+      marginTop: 8,
+      fontFamily: fonts.bodyMedium,
+      fontSize: 9,
+      color: colors.muted,
+      letterSpacing: 0.7,
+    },
+    name: {
+      marginTop: 2,
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: colors.ink,
+    },
+    actions: {
+      flexDirection: "row",
+      gap: 8,
+      marginTop: 14,
+    },
+    primary: {
+      flex: 1,
+      backgroundColor: colors.ink,
+      borderRadius: radius.button,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+    primaryText: {
+      fontFamily: fonts.bodyMedium,
+      fontSize: 13,
+      color: colors.white,
+    },
+    secondary: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      borderRadius: radius.button,
+      paddingVertical: 14,
+      alignItems: "center",
+      backgroundColor: colors.white,
+    },
+    secondaryText: {
+      fontFamily: fonts.bodyMedium,
+      fontSize: 13,
+      color: colors.ink,
+    },
   });
 }

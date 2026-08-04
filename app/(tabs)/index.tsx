@@ -10,15 +10,24 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BarChart2, Bookmark, BookmarkCheck, ChevronDown, ChevronRight, RefreshCw, ShoppingBag } from "lucide-react-native";
+import {
+  BarChart2,
+  Bookmark,
+  BookmarkCheck,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  ShoppingBag,
+} from "lucide-react-native";
 import { CityPickerSheet } from "@/components/CityPickerSheet";
 import { LookContextSheet } from "@/components/LookContextSheet";
 import { useWardrobe } from "@/store/wardrobe-store";
 import { buildOutfit, countCombinations, outfitPieceIds, outfitPieces } from "@/lib/outfit-engine";
 import { defaultFormalityFor, findSavedLookForOutfit, getFormality, getOccasion } from "@/data/types";
-import { formatTempRange } from "@/lib/weather";
+import { weatherLabelFromEmoji } from "@/lib/weather";
 import { useTheme } from "@/theme/ThemeContext";
 import type { ThemeColors } from "@/theme/colors";
+import { radius } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 function greetingForHour(date = new Date()): string {
@@ -26,6 +35,12 @@ function greetingForHour(date = new Date()): string {
   if (hour >= 5 && hour < 12) return "Bom dia";
   if (hour >= 12 && hour < 18) return "Boa tarde";
   return "Boa noite";
+}
+
+function dayNumber(dateStr?: string): string {
+  if (!dateStr) return "";
+  const part = dateStr.includes("-") ? dateStr.split("-").pop() : dateStr.split("/").pop();
+  return part?.replace(/\D/g, "") || dateStr;
 }
 
 export default function HomeScreen() {
@@ -80,6 +95,8 @@ export default function HomeScreen() {
   const isSaved = Boolean(savedMatch);
   const occasion = today ? getOccasion(today.occasionId) : null;
   const formality = today ? getFormality(today.formalityId) : null;
+  const tempNow = today?.tempMax ?? today?.temp;
+  const weatherLabel = weatherLabelFromEmoji(today?.weather);
 
   useEffect(() => {
     refreshWeather();
@@ -150,26 +167,25 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>{greetingForHour()}</Text>
         <Text style={styles.hero}>{preferences.displayName || "Olá"}</Text>
-        <View style={styles.weatherRow}>
-          <Pressable onPress={() => refreshWeather()} hitSlop={8}>
-            <Text style={styles.weather}>
-              {today?.weather ?? "☀️"}{" "}
-              {formatTempRange(today?.tempMax ?? today?.temp, today?.tempMin ?? today?.temp)}
-              {weatherLoading ? " · atualizando…" : ""}
-            </Text>
-          </Pressable>
-          <Text style={styles.weatherSep}> · </Text>
-          <Pressable
-            style={styles.cityBtn}
-            onPress={() => setCityOpen(true)}
-            hitSlop={{ top: 12, bottom: 12, left: 8, right: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Trocar cidade"
-          >
-            <Text style={styles.cityText}>{preferences.city || "Escolher cidade"}</Text>
-            <ChevronDown size={14} color={colors.ink} />
-          </Pressable>
-        </View>
+
+        <Pressable style={styles.weatherCard} onPress={() => setCityOpen(true)}>
+          <View style={styles.weatherMain}>
+            <Text style={styles.weatherEmoji}>{today?.weather ?? "☀️"}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.weatherTempLine}>
+                <Text style={styles.weatherTemp}>{tempNow != null ? `${tempNow}°` : "—"}</Text>
+                {"  "}
+                <Text style={styles.weatherCond}>{weatherLabel}</Text>
+                {weatherLoading ? " · …" : ""}
+              </Text>
+              <Text style={styles.weatherMeta} numberOfLines={1}>
+                {preferences.city || "Escolher cidade"}
+                {today ? ` · ${today.tempMax}° / ${today.tempMin}°` : ""}
+              </Text>
+            </View>
+            <ChevronDown size={16} color={colors.muted} strokeWidth={1.75} />
+          </View>
+        </Pressable>
 
         {wardrobe.length === 0 && (
           <Pressable style={styles.startCard} onPress={() => router.push("/(tabs)/add")}>
@@ -253,17 +269,16 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View style={styles.weekHeader}>
-          <Text style={styles.section}>Esta semana</Text>
-          <Pressable style={styles.linkRow} onPress={() => router.push("/planning")}>
-            <Text style={styles.link}>Planejar</Text>
-            <ChevronRight size={13} color={colors.muted} />
+        <View style={[styles.sectionRow, { marginTop: 40 }]}>
+          <Text style={styles.sectionWeek}>Planejamento da semana</Text>
+          <Pressable style={styles.sectionLink} onPress={() => router.push("/planning")} hitSlop={8}>
+            <Text style={styles.sectionLinkText}>Ver tudo</Text>
+            <ChevronRight size={14} color={colors.muted} strokeWidth={1.75} />
           </Pressable>
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekRow}>
-          {weekPlan.slice(0, 6).map((d) => {
-            const occ = getOccasion(d.occasionId);
+          {weekPlan.slice(0, 7).map((d) => {
             const resolved = resolveDayOutfit(d);
             const preview =
               resolved ??
@@ -271,27 +286,28 @@ export default function HomeScreen() {
                 formality: d.formalityId,
                 tempMin: d.tempMin,
               }).outfit;
-            const thumb = preview ? outfitPieces(preview)[0]?.item.img : undefined;
+            const thumbs = preview ? outfitPieces(preview).slice(0, 2) : [];
             const isToday = today?.id === d.id;
+            const num = dayNumber(d.date);
             return (
               <Pressable
                 key={d.id}
                 onPress={() => router.push("/planning")}
                 style={[styles.dayCard, isToday && styles.dayActive]}
               >
-                <View style={[styles.dayHead, isToday && styles.dayHeadActive]}>
-                  <Text style={[styles.dayName, isToday && styles.dayNameActive]}>{d.day}</Text>
-                  <Text style={[styles.dayTemp, isToday && styles.dayNameActive]}>
-                    {d.tempMax ?? d.temp}°/{d.tempMin ?? d.temp}°
-                  </Text>
-                </View>
-                {thumb ? (
-                  <Image source={{ uri: thumb }} style={styles.dayImg} />
-                ) : (
-                  <View style={[styles.dayImg, { backgroundColor: colors.creamDark }]} />
-                )}
-                <View style={[styles.dayFoot, isToday && styles.dayHeadActive]}>
-                  <Text>{occ.emoji}</Text>
+                <Text style={[styles.dayName, isToday && styles.dayNameActive]}>{d.day}</Text>
+                <Text style={[styles.dayNum, isToday && styles.dayNumActive]}>{num || "—"}</Text>
+                <Text style={styles.dayWeather}>
+                  {d.weather} {d.tempMax ?? d.temp}°
+                </Text>
+                <View style={styles.dayThumbs}>
+                  {thumbs.length > 0 ? (
+                    thumbs.map(({ item }) => (
+                      <Image key={item.id} source={{ uri: item.img }} style={styles.dayThumb} />
+                    ))
+                  ) : (
+                    <View style={[styles.dayThumb, { backgroundColor: colors.creamDark }]} />
+                  )}
                 </View>
               </Pressable>
             );
@@ -354,183 +370,229 @@ export default function HomeScreen() {
 
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  content: { paddingHorizontal: 24, paddingBottom: 32 },
-  eyebrow: {
-    fontFamily: fonts.mono,
-    fontSize: 11,
-    color: colors.muted,
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    marginTop: 8,
-  },
-  hero: { fontFamily: fonts.display, fontSize: 34, color: colors.ink, marginTop: 4 },
-  weather: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-  weatherRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    alignSelf: "flex-start",
-  },
-  weatherSep: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-  cityBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 2,
-  },
-  cityText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    color: colors.ink,
-    textDecorationLine: "underline",
-    textDecorationColor: colors.gold,
-  },
-  startCard: {
-    marginTop: 24,
-    backgroundColor: colors.ink,
-    borderRadius: 22,
-    padding: 20,
-  },
-  startEyebrow: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    color: colors.gold,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-  },
-  startTitle: {
-    fontFamily: fonts.display,
-    fontSize: 22,
-    color: colors.white,
-    marginTop: 8,
-  },
-  startBody: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.onInk,
-    opacity: 0.6,
-    marginTop: 8,
-    lineHeight: 19,
-  },
-  startCta: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    color: colors.gold,
-    marginTop: 14,
-  },
-  section: { fontFamily: fonts.displayMedium, fontSize: 22, color: colors.ink, marginBottom: 16 },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: 24,
-    overflow: "hidden",
-  },
-  heroImg: { width: "100%", height: 280, backgroundColor: colors.creamDark },
-  heroEmpty: { alignItems: "center", justifyContent: "center" },
-  emptyText: { fontFamily: fonts.body, color: colors.muted },
-  tag: {
-    position: "absolute",
-    top: 16,
-    left: 16,
-    maxWidth: "78%",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(255,255,255,0.94)",
-    borderRadius: 999,
-    paddingLeft: 12,
-    paddingRight: 8,
-    paddingVertical: 7,
-  },
-  tagText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.ink, flexShrink: 1 },
-  cardBody: { padding: 20 },
-  pieceRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  piece: { flex: 1, alignItems: "center", gap: 6 },
-  pieceImg: {
-    width: "100%",
-    aspectRatio: 1,
-    borderRadius: 14,
-    backgroundColor: colors.creamDark,
-  },
-  pieceLabel: { fontFamily: fonts.mono, fontSize: 10, color: colors.muted },
-  actions: { flexDirection: "row", gap: 8 },
-  primaryBtn: {
-    flex: 1,
-    backgroundColor: colors.ink,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  primaryText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.white },
-  iconBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  saveBtn: {
-    marginTop: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 16,
-    paddingVertical: 13,
-    backgroundColor: colors.creamWarm,
-  },
-  saveBtnOn: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.gold,
-  },
-  saveText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
-  saveTextOn: { color: colors.goldDark },
-  weekHeader: {
-    marginTop: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  linkRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  link: { fontFamily: fonts.body, fontSize: 12, color: colors.muted },
-  weekRow: { gap: 10, paddingBottom: 4 },
-  dayCard: {
-    width: 64,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: colors.white,
-  },
-  dayActive: { borderWidth: 2, borderColor: colors.gold },
-  dayHead: { paddingTop: 10, paddingBottom: 6, alignItems: "center", backgroundColor: colors.white },
-  dayHeadActive: { backgroundColor: colors.ink },
-  dayName: { fontFamily: fonts.mono, fontSize: 9, color: colors.muted, textTransform: "uppercase" },
-  dayNameActive: { color: colors.white },
-  dayTemp: { fontFamily: fonts.monoMedium, fontSize: 9, color: colors.ink, marginTop: 2 },
-  dayImg: { width: 64, height: 72 },
-  dayFoot: { paddingVertical: 8, alignItems: "center", backgroundColor: colors.white },
-  links: { marginTop: 40, gap: 12 },
-  linkCard: {
-    backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  iconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    backgroundColor: colors.creamDark,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  linkTitle: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
-  linkSub: { fontFamily: fonts.body, fontSize: 11, color: colors.muted, marginTop: 2 },
+    safe: { flex: 1, backgroundColor: colors.cream },
+    content: { paddingHorizontal: 24, paddingBottom: 32 },
+    eyebrow: {
+      fontFamily: fonts.mono,
+      fontSize: 11,
+      color: colors.muted,
+      letterSpacing: 2,
+      textTransform: "uppercase",
+      marginTop: 8,
+    },
+    hero: { fontFamily: fonts.display, fontSize: 34, color: colors.ink, marginTop: 4 },
+    weatherCard: {
+      marginTop: 16,
+      backgroundColor: colors.white,
+      borderRadius: radius.card,
+      paddingVertical: 18,
+      paddingHorizontal: 18,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    weatherMain: { flexDirection: "row", alignItems: "center", gap: 14 },
+    weatherEmoji: { fontSize: 28 },
+    weatherTempLine: { marginBottom: 4 },
+    weatherTemp: {
+      fontFamily: fonts.bodySemi,
+      fontSize: 22,
+      color: colors.ink,
+    },
+    weatherCond: {
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: colors.ink,
+    },
+    weatherMeta: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: colors.muted,
+    },
+    startCard: {
+      marginTop: 24,
+      backgroundColor: colors.ink,
+      borderRadius: 22,
+      padding: 20,
+    },
+    startEyebrow: {
+      fontFamily: fonts.mono,
+      fontSize: 10,
+      color: colors.gold,
+      letterSpacing: 1.5,
+      textTransform: "uppercase",
+    },
+    startTitle: {
+      fontFamily: fonts.display,
+      fontSize: 22,
+      color: colors.white,
+      marginTop: 8,
+    },
+    startBody: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: colors.onInk,
+      opacity: 0.6,
+      marginTop: 8,
+      lineHeight: 19,
+    },
+    startCta: {
+      fontFamily: fonts.bodyMedium,
+      fontSize: 13,
+      color: colors.gold,
+      marginTop: 14,
+    },
+    section: { fontFamily: fonts.displayMedium, fontSize: 22, color: colors.ink, marginBottom: 16 },
+    sectionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 16,
+    },
+    sectionWeek: {
+      fontFamily: fonts.display,
+      fontSize: 24,
+      color: colors.ink,
+    },
+    sectionLink: { flexDirection: "row", alignItems: "center", gap: 2 },
+    sectionLinkText: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: colors.muted,
+    },
+    card: {
+      backgroundColor: colors.white,
+      borderRadius: 24,
+      overflow: "hidden",
+    },
+    heroImg: { width: "100%", height: 280, backgroundColor: colors.creamDark },
+    heroEmpty: { alignItems: "center", justifyContent: "center" },
+    emptyText: { fontFamily: fonts.body, color: colors.muted },
+    tag: {
+      position: "absolute",
+      top: 16,
+      left: 16,
+      maxWidth: "78%",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: "rgba(255,255,255,0.94)",
+      borderRadius: 999,
+      paddingLeft: 12,
+      paddingRight: 8,
+      paddingVertical: 7,
+    },
+    tagText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.ink, flexShrink: 1 },
+    cardBody: { padding: 20 },
+    pieceRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+    piece: { flex: 1, alignItems: "center", gap: 6 },
+    pieceImg: {
+      width: "100%",
+      aspectRatio: 1,
+      borderRadius: 14,
+      backgroundColor: colors.creamDark,
+    },
+    pieceLabel: { fontFamily: fonts.mono, fontSize: 10, color: colors.muted },
+    actions: { flexDirection: "row", gap: 8 },
+    primaryBtn: {
+      flex: 1,
+      backgroundColor: colors.ink,
+      borderRadius: 16,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+    primaryText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.white },
+    iconBtn: {
+      width: 48,
+      height: 48,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    saveBtn: {
+      marginTop: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      borderRadius: 16,
+      paddingVertical: 13,
+      backgroundColor: colors.creamWarm,
+    },
+    saveBtnOn: {
+      backgroundColor: colors.white,
+      borderWidth: 1,
+      borderColor: colors.gold,
+    },
+    saveText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
+    saveTextOn: { color: colors.goldDark },
+    weekRow: { gap: 10, paddingBottom: 4 },
+    dayCard: {
+      width: 88,
+      borderRadius: radius.card,
+      backgroundColor: colors.white,
+      paddingTop: 14,
+      paddingBottom: 12,
+      paddingHorizontal: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+    },
+    dayActive: {
+      backgroundColor: colors.creamWarm,
+      borderColor: colors.gold,
+    },
+    dayName: {
+      fontFamily: fonts.bodyMedium,
+      fontSize: 11,
+      color: colors.muted,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    dayNameActive: { color: colors.ink },
+    dayNum: {
+      fontFamily: fonts.display,
+      fontSize: 28,
+      color: colors.ink,
+      marginTop: 2,
+      lineHeight: 34,
+    },
+    dayNumActive: { color: colors.ink },
+    dayWeather: {
+      fontFamily: fonts.body,
+      fontSize: 11,
+      color: colors.muted,
+      marginTop: 4,
+    },
+    dayThumbs: {
+      marginTop: 12,
+      flexDirection: "row",
+      gap: 4,
+    },
+    dayThumb: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: colors.creamDark,
+    },
+    links: { marginTop: 40, gap: 12 },
+    linkCard: {
+      backgroundColor: colors.white,
+      borderRadius: 20,
+      padding: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    iconBox: {
+      width: 32,
+      height: 32,
+      borderRadius: 12,
+      backgroundColor: colors.creamDark,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    linkTitle: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
+    linkSub: { fontFamily: fonts.body, fontSize: 11, color: colors.muted, marginTop: 2 },
   });
 }

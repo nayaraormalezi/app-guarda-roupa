@@ -4,6 +4,7 @@ import type { ClothingItem } from "@/data/types";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useTheme } from "@/theme/ThemeContext";
 import type { ThemeColors } from "@/theme/colors";
+import { radius } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function PieceCard({ item, onPress }: { item: ClothingItem; onPress?: () => void }) {
@@ -37,9 +38,9 @@ function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
   card: {
     backgroundColor: colors.white,
-    borderRadius: 20,
+    borderRadius: radius.card,
     overflow: "hidden",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   img: {
     width: "100%",

@@ -12,11 +12,10 @@ import {
   PlayfairDisplay_400Regular_Italic,
 } from "@expo-google-fonts/playfair-display";
 import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_600SemiBold,
-} from "@expo-google-fonts/dm-sans";
-import { DMMono_400Regular, DMMono_500Medium } from "@expo-google-fonts/dm-mono";
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+} from "@expo-google-fonts/inter";
 import { WardrobeProvider, useWardrobe } from "@/store/wardrobe-store";
 import { AuthProvider, useAuth } from "@/store/auth-store";
 import { SyncBridge } from "@/components/SyncBridge";
@@ -45,8 +44,8 @@ function ThemedRoot({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F9F6F2" }}>
-        <ActivityIndicator color="#C4A97D" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAF8F6" }}>
+        <ActivityIndicator color="#C8A97E" />
       </View>
     );
   }
@@ -139,11 +138,9 @@ export default function RootLayout() {
     PlayfairDisplay_500Medium,
     PlayfairDisplay_600SemiBold,
     PlayfairDisplay_400Regular_Italic,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-    DMMono_400Regular,
-    DMMono_500Medium,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
   });
 
   useEffect(() => {

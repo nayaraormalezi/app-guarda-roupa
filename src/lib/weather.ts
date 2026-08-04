@@ -30,6 +30,27 @@ function weatherCodeToEmoji(code: number): string {
   return "🌤";
 }
 
+export function weatherLabelFromEmoji(emoji?: string): string {
+  switch (emoji) {
+    case "☀️":
+      return "Ensolarado";
+    case "⛅":
+      return "Parcialmente nublado";
+    case "☁️":
+      return "Nublado";
+    case "🌦":
+      return "Chuvisco";
+    case "🌧":
+      return "Chuva";
+    case "❄️":
+      return "Frio";
+    case "⛈":
+      return "Tempestade";
+    default:
+      return "Clima do dia";
+  }
+}
+
 export function formatTempRange(tempMax?: number, tempMin?: number): string {
   if (tempMax == null || tempMin == null) return "—";
   return `${tempMax}° / ${tempMin}°`;

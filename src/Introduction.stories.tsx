@@ -5,13 +5,13 @@ import { fonts } from "@/theme/typography";
 
 function Welcome() {
   return (
-    <View style={{ gap: 12, maxWidth: 560 }}>
-      <Text style={{ fontFamily: fonts.display, fontSize: 34, color: "#1C1917" }}>
-        Personal Stylist
+    <View style={{ gap: 16, maxWidth: 560 }}>
+      <Text style={{ fontFamily: fonts.display, fontSize: 40, color: "#121212" }}>
+        Vestia
       </Text>
-      <Text style={{ fontFamily: fonts.body, fontSize: 15, color: "#8C8278", lineHeight: 22 }}>
-        Design system do app — tokens e componentes. Use a toolbar Theme para Light/Dark.
-        Navegue pelas seções Foundations e Components no menu.
+      <Text style={{ fontFamily: fonts.body, fontSize: 16, color: "#8E8A83", lineHeight: 24 }}>
+        Design system da assistente de Personal Stylist. Playfair + Inter. Use Theme na toolbar
+        para Light/Dark. Navegue Foundations e Components.
       </Text>
     </View>
   );

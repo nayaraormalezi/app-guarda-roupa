@@ -10,34 +10,31 @@ import type { ThemeColors } from "@/theme/colors";
 function FabIcon({ colors }: { colors: ThemeColors }) {
   return (
     <View style={[styles.fab, { backgroundColor: colors.ink }]}>
-      <Plus size={22} color={colors.onInk} strokeWidth={2.2} />
+      <Plus size={22} color={colors.onInk} strokeWidth={2} />
     </View>
   );
 }
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const bottomGap = Math.max(insets.bottom, 10);
+  const bottomPad = Math.max(insets.bottom, 8);
   const { colors } = useTheme();
 
   const tabBarStyle = useMemo(
     () => ({
-      backgroundColor: colors.tabBar,
-      borderTopWidth: 0,
-      height: 68,
-      paddingTop: 0,
-      paddingBottom: 0,
-      marginHorizontal: 16,
-      marginBottom: bottomGap,
-      borderRadius: 22,
-      overflow: "visible" as const,
-      shadowColor: colors.ink,
-      shadowOpacity: 0.1,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 8,
+      backgroundColor: colors.white,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      height: 64 + bottomPad,
+      paddingTop: 8,
+      paddingBottom: bottomPad,
+      marginHorizontal: 0,
+      marginBottom: 0,
+      borderRadius: 0,
+      elevation: 0,
+      shadowOpacity: 0,
     }),
-    [colors, bottomGap]
+    [colors, bottomPad]
   );
 
   return (
@@ -45,15 +42,15 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
-        tabBarInactiveTintColor: colors.soft,
+        tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: {
           fontFamily: fonts.bodyMedium,
-          fontSize: 9,
-          marginBottom: 2,
+          fontSize: 10,
+          marginTop: 2,
         },
         tabBarStyle,
         tabBarItemStyle: {
-          paddingHorizontal: 4,
+          paddingHorizontal: 2,
           justifyContent: "center",
           alignItems: "center",
         },
@@ -66,14 +63,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => <Home size={20} color={color} />,
+          tabBarIcon: ({ color }) => <Home size={22} color={color} strokeWidth={1.75} />,
         }}
       />
       <Tabs.Screen
         name="closet"
         options={{
-          title: "Closet",
-          tabBarIcon: ({ color }) => <Grid3X3 size={20} color={color} />,
+          title: "Guarda-roupa",
+          tabBarIcon: ({ color }) => <Grid3X3 size={22} color={color} strokeWidth={1.75} />,
         }}
       />
       <Tabs.Screen
@@ -85,7 +82,6 @@ export default function TabLayout() {
           tabBarItemStyle: {
             justifyContent: "center",
             alignItems: "center",
-            height: 68,
           },
         }}
       />
@@ -93,14 +89,14 @@ export default function TabLayout() {
         name="stylist"
         options={{
           title: "Stylist",
-          tabBarIcon: ({ color }) => <Sparkles size={20} color={color} />,
+          tabBarIcon: ({ color }) => <Sparkles size={22} color={color} strokeWidth={1.75} />,
         }}
       />
       <Tabs.Screen
         name="more"
         options={{
           title: "Mais",
-          tabBarIcon: ({ color }) => <MoreHorizontal size={20} color={color} />,
+          tabBarIcon: ({ color }) => <MoreHorizontal size={22} color={color} strokeWidth={1.75} />,
         }}
       />
     </Tabs>
@@ -109,13 +105,11 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   fab: {
-    width: 48,
-    height: 48,
-    borderRadius: 18,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: "center",
     justifyContent: "center",
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    marginTop: -10,
   },
 });

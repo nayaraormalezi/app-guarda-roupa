@@ -8,11 +8,10 @@ import {
   PlayfairDisplay_400Regular_Italic,
 } from "@expo-google-fonts/playfair-display";
 import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_600SemiBold,
-} from "@expo-google-fonts/dm-sans";
-import { DMMono_400Regular, DMMono_500Medium } from "@expo-google-fonts/dm-mono";
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+} from "@expo-google-fonts/inter";
 import { ThemeProvider, useTheme } from "@/theme/ThemeContext";
 import type { ThemePreference } from "@/data/types";
 
@@ -50,17 +49,15 @@ function WithFonts({ children }: { children: ReactNode }) {
     PlayfairDisplay_500Medium,
     PlayfairDisplay_600SemiBold,
     PlayfairDisplay_400Regular_Italic,
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-    DMMono_400Regular,
-    DMMono_500Medium,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
   });
 
   if (!loaded) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F9F6F2", minHeight: 240 }}>
-        <ActivityIndicator color="#C4A97D" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAF8F6", minHeight: 240 }}>
+        <ActivityIndicator color="#C8A97E" />
       </View>
     );
   }

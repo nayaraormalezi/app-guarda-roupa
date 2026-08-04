@@ -16,8 +16,7 @@ const config: StorybookConfig = {
         "react-native-worklets",
         "lucide-react-native",
         "@expo-google-fonts/playfair-display",
-        "@expo-google-fonts/dm-sans",
-        "@expo-google-fonts/dm-mono",
+        "@expo-google-fonts/inter",
         "expo-font",
       ],
       pluginReactOptions: {

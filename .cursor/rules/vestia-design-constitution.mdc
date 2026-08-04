@@ -1,0 +1,47 @@
+---
+description: Vestia Design Constitution — UI, brand, copy, and layout rules
+alwaysApply: true
+---
+
+# Vestia Design Constitution
+
+Fonte completa: `docs/VESTIA_DESIGN_CONSTITUTION.md`  
+Tokens: `src/theme/colors.ts`, `src/theme/typography.ts`
+
+## Product
+
+Vestia is an AI Personal Stylist assistant — not fashion browsing, not e-commerce, not a closet organizer. Every UI decision must reinforce a calm, premium assistant.
+
+## Philosophy
+
+Less UI. More Intelligence. Prefer removing decisions, fields, and buttons when the Stylist can infer.
+
+## Visual
+
+- Background `#FAF8F6` · Surface `#FFFFFF` · Primary `#121212` · Secondary `#C8A97E` · Accent `#EDE5DA` · Border `#ECE7E2` · Muted `#8E8A83`
+- Typography: Playfair Display (headings) + Inter (body) only — never a third family
+- Spacing: 4 / 8 / 16 / 24 / 32 / 40 / 48 / 64 only
+- Radius: inputs 16 · cards 24 · sheets 32 · buttons 999
+- Shadows: very subtle; prefer white-on-white depth
+- Color mix ≈ 90% cream/white · 8% black · 2% accent — never colorful or gamified UI
+
+## Components
+
+- One primary CTA per screen (solid black / white text); secondary is outline
+- No gradients, filled icons, heavy borders, bounce, or confetti
+- Cards: image-first, generous whitespace, minimal copy
+- Icons: outline, 2px stroke
+- Motion: slow fade / opacity / scale 0.98→1
+
+## Screens & copy
+
+- Home is an assistant (“Seu look está pronto.” / Today's Edit) — never a dashboard of metrics first
+- Prefer “Nova peça”, “Stylist”, “Today's Edit” over “Adicionar roupa”, “IA”, “Sugestão”
+- Voice: image consultant, never influencer slang
+
+## Before shipping UI
+
+1. Can we remove a button?
+2. Can the Stylist decide this?
+3. Can we show less?
+4. Can we add more whitespace?

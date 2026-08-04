@@ -48,3 +48,7 @@ Veja `supabase/schema.sql` e `supabase/functions/ai`. Detalhes de store em `docs
 
 ## Bundle
 `com.nayara.personalstylist`
+
+## Design system
+Constituição: `docs/VESTIA_DESIGN_CONSTITUTION.md` · Tokens: `src/theme/`
+
