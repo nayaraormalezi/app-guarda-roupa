@@ -1,7 +1,13 @@
 import Constants from "expo-constants";
 import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
 
-const GEMINI_MODELS = ["gemini-flash-latest", "gemini-2.0-flash-lite", "gemini-2.0-flash"] as const;
+const GEMINI_MODELS = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-flash-latest",
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+] as const;
 
 export function resolveGeminiApiKey(): string | undefined {
   const fromExtra = (Constants.expoConfig?.extra as { geminiApiKey?: string } | undefined)?.geminiApiKey;
@@ -15,14 +21,43 @@ export function preferServerAi(): boolean {
   return isSupabaseConfigured();
 }
 
+async function readFunctionError(error: unknown, data: unknown): Promise<string> {
+  const bodyErr = (data as { error?: string } | null)?.error;
+  if (bodyErr) return String(bodyErr);
+
+  // supabase-js FunctionsHttpError often has context Response
+  const ctx = (error as { context?: Response })?.context;
+  if (ctx && typeof ctx.json === "function") {
+    try {
+      const cloned = ctx.clone?.() ?? ctx;
+      const j = (await cloned.json()) as { error?: string };
+      if (j?.error) return String(j.error);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (typeof error === "object" && error && "message" in error) {
+    return String((error as { message: string }).message);
+  }
+  return String(error);
+}
+
 async function viaEdgeFunction(body: Record<string, unknown>): Promise<string> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.functions.invoke("ai", { body });
-  if (error) throw error;
+  if (error) {
+    const detail = await readFunctionError(error, data);
+    if (/429|quota|QUOTA/i.test(detail)) throw new Error(`QUOTA:${detail}`);
+    if (/VISION_FAILED|no_provider/i.test(detail)) throw new Error(`VISION:${detail}`);
+    throw new Error(detail || "EDGE_ERROR");
+  }
   const text = (data as { text?: string; error?: string } | null)?.text;
   if ((data as { error?: string } | null)?.error) {
-    throw new Error(String((data as { error: string }).error));
+    const err = String((data as { error: string }).error);
+    if (/429|quota|QUOTA/i.test(err)) throw new Error(`QUOTA:${err}`);
+    throw new Error(err);
   }
   if (!text) throw new Error("EMPTY_RESPONSE");
   return text;
@@ -91,7 +126,9 @@ export async function geminiGenerateText(
   if (preferServerAi()) {
     try {
       return await viaEdgeFunction({ mode: "stylist", prompt });
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.startsWith("QUOTA:") || msg.startsWith("VISION:")) throw e;
       // fall through to client key for local/dev
     }
   }
@@ -103,17 +140,14 @@ export async function geminiAnalyzeImage(params: {
   mime: string;
   base64: string;
 }): Promise<string> {
+  // Prefer server only — client Gemini quota is what was failing and masking Groq/OpenRouter
   if (preferServerAi()) {
-    try {
-      return await viaEdgeFunction({
-        mode: "analyze",
-        prompt: params.prompt,
-        mime: params.mime,
-        imageBase64: params.base64,
-      });
-    } catch {
-      // fall through
-    }
+    return viaEdgeFunction({
+      mode: "analyze",
+      prompt: params.prompt,
+      mime: params.mime,
+      imageBase64: params.base64,
+    });
   }
   return viaClientKey(params.prompt, {
     json: true,

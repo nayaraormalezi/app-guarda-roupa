@@ -167,6 +167,12 @@ export async function pushStateToCloud(state: PersistedState, userId: string): P
       }))
     );
   }
+  const keepChatIds = new Set(state.chatMessages.map((m) => m.id));
+  const { data: remoteChat } = await supabase.from("chat_messages").select("id").eq("user_id", userId);
+  const orphanChat = (remoteChat ?? []).map((r) => r.id as string).filter((id) => !keepChatIds.has(id));
+  if (orphanChat.length) {
+    await supabase.from("chat_messages").delete().eq("user_id", userId).in("id", orphanChat);
+  }
 }
 
 export async function pullStateFromCloud(userId: string): Promise<Partial<PersistedState> | null> {
@@ -273,6 +279,21 @@ export async function pullStateFromCloud(userId: string): Promise<Partial<Persis
 }
 
 /** Merge cloud into local: local wardrobe wins once the device has been initialized (keeps deletes). */
+function mergeChatMessages(local: ChatMessage[], cloud?: ChatMessage[]): ChatMessage[] {
+  if (!cloud?.length) return local;
+  if (!local.length) return cloud;
+  const byId = new Map<string, ChatMessage>();
+  for (const m of cloud) byId.set(m.id, m);
+  for (const m of local) byId.set(m.id, m); // local wins on same id
+  return Array.from(byId.values())
+    .sort((a, b) => {
+      const ta = Number(String(a.id).split("-")[0]) || 0;
+      const tb = Number(String(b.id).split("-")[0]) || 0;
+      return ta - tb;
+    })
+    .slice(-80);
+}
+
 export function mergeLocalAndCloud(
   local: PersistedState,
   cloud: Partial<PersistedState>
@@ -299,14 +320,23 @@ export function mergeLocalAndCloud(
         ? cloud.wishList
         : local.wishList;
 
+  // Device week plan (looks planejados) wins — cloud was wiping outfitRefs on sync
+  const weekPlan =
+    local.seeded || local.weekPlan.length > 0
+      ? local.weekPlan
+      : cloud.weekPlan?.length
+        ? cloud.weekPlan
+        : local.weekPlan;
+
   return {
     ...local,
     wardrobe,
     savedLooks,
-    weekPlan: cloud.weekPlan?.length ? cloud.weekPlan : local.weekPlan,
+    weekPlan,
     wishList,
     favoriteStores: cloud.favoriteStores?.length ? cloud.favoriteStores : local.favoriteStores,
-    chatMessages: cloud.chatMessages?.length ? cloud.chatMessages : local.chatMessages,
+    // Union by id — never let cloud wipe local conversation
+    chatMessages: mergeChatMessages(local.chatMessages, cloud.chatMessages),
     preferences: cloud.preferences
       ? {
           ...local.preferences,

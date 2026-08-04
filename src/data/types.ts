@@ -51,6 +51,7 @@ export interface Outfit {
   shoe?: ClothingItem;
   bag?: ClothingItem;
   outerwear?: ClothingItem;
+  accessory?: ClothingItem;
 }
 
 export interface OutfitRefs {
@@ -60,6 +61,7 @@ export interface OutfitRefs {
   shoe?: string;
   bag?: string;
   outerwear?: string;
+  accessory?: string;
 }
 
 export interface SavedLook {
@@ -94,6 +96,10 @@ export interface ChatMessage {
   outfit?: Outfit;
   /** Persist outfit as refs so chat survives reloads */
   outfitRefs?: OutfitRefs;
+  occasionId?: OccasionId;
+  formalityId?: FormalityId;
+  /** Week plan day this suggestion was meant for */
+  planDayId?: string;
 }
 
 export interface WishItem {
@@ -132,6 +138,8 @@ export interface FormalityMeta {
   hint: string;
 }
 
+export type ThemePreference = "light" | "dark" | "system";
+
 export interface AppPreferences {
   displayName: string;
   city: string;
@@ -139,6 +147,8 @@ export interface AppPreferences {
   onboardingComplete: boolean;
   latitude?: number;
   longitude?: number;
+  /** App appearance — defaults to system */
+  theme?: ThemePreference;
 }
 
 export interface PersistedState {
@@ -149,6 +159,8 @@ export interface PersistedState {
   chatMessages: ChatMessage[];
   wishList: WishItem[];
   favoriteStores: FavoriteStore[];
+  /** Piece id → YYYY-MM-DD days counted as used (max 1 per day in stats). */
+  pieceUseDays?: Record<string, string[]>;
   seeded: boolean;
 }
 
@@ -325,6 +337,7 @@ export function outfitToRefs(outfit: Outfit): OutfitRefs {
     shoe: outfit.shoe?.id,
     bag: outfit.bag?.id,
     outerwear: outfit.outerwear?.id,
+    accessory: outfit.accessory?.id,
   };
 }
 
@@ -335,7 +348,8 @@ export function outfitRefsEqual(a: OutfitRefs, b: OutfitRefs): boolean {
     a.dress === b.dress &&
     a.shoe === b.shoe &&
     a.bag === b.bag &&
-    a.outerwear === b.outerwear
+    a.outerwear === b.outerwear &&
+    a.accessory === b.accessory
   );
 }
 

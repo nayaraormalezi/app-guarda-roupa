@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -6,12 +6,15 @@ import { Trash2 } from "lucide-react-native";
 import { getOccasion } from "@/data/types";
 import { outfitPieces } from "@/lib/outfit-engine";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export default function LooksScreen() {
   const router = useRouter();
   const { savedLooks, resolveLook, deleteLook } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
@@ -66,7 +69,8 @@ export default function LooksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   list: { padding: 24, gap: 12, paddingBottom: 40 },
   empty: { alignItems: "center", paddingTop: 80 },
@@ -85,4 +89,5 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   name: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.ink },
   meta: { fontFamily: fonts.body, fontSize: 11, color: colors.muted, marginTop: 4 },
-});
+  });
+}

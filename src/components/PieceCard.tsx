@@ -1,11 +1,14 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ClothingItem } from "@/data/types";
 import { StatusBadge } from "@/components/StatusBadge";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function PieceCard({ item, onPress }: { item: ClothingItem; onPress?: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View>
@@ -30,7 +33,8 @@ export function PieceCard({ item, onPress }: { item: ClothingItem; onPress?: () 
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     backgroundColor: colors.white,
     borderRadius: 20,
@@ -71,4 +75,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.muted,
   },
-});
+  });
+}

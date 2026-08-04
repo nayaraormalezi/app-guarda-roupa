@@ -5,6 +5,18 @@ export { SEED_WARDROBE } from "./seed-wardrobe";
 
 const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"] as const;
 
+/** Local calendar date key — avoid UTC shift from toISOString(). */
+export function localDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function dayPlanId(d: Date): string {
+  return `day-${localDateKey(d)}`;
+}
+
 export function buildWeekPlan(
   from = new Date(),
   weatherDays?: { weather: string; temp: number; tempMax: number; tempMin: number }[]
@@ -23,14 +35,13 @@ export function buildWeekPlan(
   const fallbackMin = [18, 16, 14, 15, 12, 11, 20];
 
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(from);
-    d.setDate(from.getDate() + i);
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
     const tempMax = weatherDays?.[i]?.tempMax ?? fallbackMax[i];
     const tempMin = weatherDays?.[i]?.tempMin ?? fallbackMin[i];
     const temp = weatherDays?.[i]?.temp ?? Math.round((tempMax + tempMin) / 2);
     const occasionId = normalizeOccasionId(occasions[i]);
     return {
-      id: `day-${d.toISOString().slice(0, 10)}`,
+      id: dayPlanId(d),
       day: DAY_NAMES[d.getDay()],
       date: String(d.getDate()).padStart(2, "0"),
       weather: weatherDays?.[i]?.weather ?? fallbackWeather[i],
@@ -70,4 +81,5 @@ export const DEFAULT_PREFERENCES = {
   city: "",
   styleTags: [] as string[],
   onboardingComplete: false,
+  theme: "system" as const,
 };

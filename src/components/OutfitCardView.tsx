@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import type { Outfit } from "@/data/types";
 import { outfitPieces } from "@/lib/outfit-engine";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function OutfitCardView({
@@ -14,6 +15,8 @@ export function OutfitCardView({
   onSave?: () => void;
   onSwap?: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const pieces = outfitPieces(outfit);
   return (
     <View style={styles.card}>
@@ -29,7 +32,7 @@ export function OutfitCardView({
         <View style={styles.actions}>
           {onSave && (
             <Pressable style={styles.primary} onPress={onSave}>
-              <Text style={styles.primaryText}>Salvar look</Text>
+              <Text style={styles.primaryText}>Aceitar look</Text>
             </Pressable>
           )}
           {onSwap && (
@@ -43,7 +46,8 @@ export function OutfitCardView({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   card: {
     backgroundColor: colors.white,
     borderRadius: 20,
@@ -101,4 +105,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.ink,
   },
-});
+  });
+}

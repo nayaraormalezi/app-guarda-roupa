@@ -5,7 +5,29 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MODELS = ["gemini-flash-latest", "gemini-2.0-flash-lite", "gemini-2.0-flash"];
+const MODELS = [
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
+  "gemini-flash-latest",
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+];
+
+/** Text-only (this Groq free account has no vision models). */
+const GROQ_TEXT_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-20b"];
+
+/** Free OpenRouter vision-capable models (needs OPENROUTER_API_KEY). */
+const OPENROUTER_VISION_MODELS = [
+  "nvidia/nemotron-nano-12b-v2-vl:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "google/gemma-4-31b-it:free",
+];
+
+const OPENROUTER_TEXT_MODELS = [
+  "nvidia/nemotron-nano-12b-v2-vl:free",
+  "google/gemma-4-31b-it:free",
+  "openrouter/free",
+];
 
 type StoreIn = { name: string; url: string };
 type QueryIn = {
@@ -61,24 +83,121 @@ function extractJson(text: string): unknown {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function callGeminiJson(prompt: string, withSearch = false): Promise<string> {
+async function callGroqText(prompt: string, jsonMode = true): Promise<string> {
+  const key = Deno.env.get("GROQ_API_KEY");
+  if (!key) throw new Error("MISSING_GROQ_KEY");
+
+  let last: unknown;
+  for (const model of GROQ_TEXT_MODELS) {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.4,
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        messages: [
+          {
+            role: "user",
+            content: jsonMode && !/json/i.test(prompt) ? `${prompt}\n\nResponda em JSON.` : prompt,
+          },
+        ],
+      }),
+    });
+    const raw = await res.text();
+    if (!res.ok) {
+      last = new Error(`GROQ_${res.status}:${model}:${raw.slice(0, 100)}`);
+      continue;
+    }
+    const data = JSON.parse(raw) as { choices?: { message?: { content?: string } }[] };
+    const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+    if (text) return text;
+    last = new Error("GROQ_EMPTY");
+  }
+  throw last instanceof Error ? last : new Error("GROQ_FAILED");
+}
+
+async function callOpenRouter(
+  prompt: string,
+  image?: { mime: string; data: string },
+  jsonMode = true
+): Promise<string> {
+  const key = Deno.env.get("OPENROUTER_API_KEY");
+  if (!key) throw new Error("MISSING_OPENROUTER_KEY");
+
+  const models = image ? OPENROUTER_VISION_MODELS : OPENROUTER_TEXT_MODELS;
+  let last: unknown;
+
+  for (const model of models) {
+    const content: Record<string, unknown>[] = [
+      {
+        type: "text",
+        text: jsonMode && !/json/i.test(prompt) ? `${prompt}\n\nResponda em JSON.` : prompt,
+      },
+    ];
+    if (image) {
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:${image.mime};base64,${image.data}` },
+      });
+    }
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://personal-stylist.app",
+        "X-Title": "Personal Stylist",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: image ? 0.2 : 0.4,
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        messages: [{ role: "user", content }],
+      }),
+    });
+    const raw = await res.text();
+    if (!res.ok) {
+      last = new Error(`OR_${res.status}:${model}:${raw.slice(0, 120)}`);
+      continue;
+    }
+    const data = JSON.parse(raw) as { choices?: { message?: { content?: string } }[] };
+    const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+    if (text) return text;
+    last = new Error("OR_EMPTY");
+  }
+  throw last instanceof Error ? last : new Error("OPENROUTER_FAILED");
+}
+
+async function callGeminiOnly(
+  prompt: string,
+  image?: { mime: string; data: string },
+  withSearch = false
+): Promise<string> {
   const key = Deno.env.get("GEMINI_API_KEY");
-  if (!key) throw new Error("MISSING_API_KEY");
+  if (!key) throw new Error("MISSING_GEMINI_KEY");
 
   let last: unknown;
   for (const model of MODELS) {
+    const parts: Record<string, unknown>[] = [{ text: prompt }];
+    if (image) {
+      parts.push({ inline_data: { mime_type: image.mime, data: image.data } });
+    }
     const url =
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
     const body: Record<string, unknown> = {
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [{ parts }],
       generationConfig: {
-        temperature: 0.2,
-        responseMimeType: "application/json",
+        temperature: image ? 0.2 : withSearch ? 0.2 : 0.5,
+        ...(withSearch ? {} : { responseMimeType: "application/json" }),
       },
     };
     if (withSearch) {
       body.tools = [{ google_search: {} }];
-      // responseMimeType can conflict with tools on some models — keep text then parse
       body.generationConfig = { temperature: 0.2 };
     }
     const res = await fetch(url, {
@@ -92,7 +211,8 @@ async function callGeminiJson(prompt: string, withSearch = false): Promise<strin
         last = new Error(`${res.status}:${model}`);
         continue;
       }
-      throw new Error(raw.slice(0, 240));
+      last = new Error(raw.slice(0, 200));
+      continue;
     }
     const data = JSON.parse(raw);
     const text =
@@ -101,51 +221,90 @@ async function callGeminiJson(prompt: string, withSearch = false): Promise<strin
     if (text) return text;
     last = new Error("EMPTY");
   }
-  throw last instanceof Error ? last : new Error("FAILED");
+  throw last instanceof Error ? last : new Error("GEMINI_FAILED");
 }
 
-async function callGemini(
-  prompt: string,
-  image?: { mime: string; data: string }
-): Promise<string> {
-  const key = Deno.env.get("GEMINI_API_KEY");
-  if (!key) throw new Error("MISSING_API_KEY");
+/** Text: Groq first (free + available), then Gemini, then OpenRouter. */
+async function callTextLLM(prompt: string, jsonMode = true): Promise<string> {
+  const errors: string[] = [];
 
-  let last: unknown;
-  for (const model of MODELS) {
-    const parts: Record<string, unknown>[] = [{ text: prompt }];
-    if (image) {
-      parts.push({ inline_data: { mime_type: image.mime, data: image.data } });
+  if (Deno.env.get("GROQ_API_KEY")) {
+    try {
+      return await callGroqText(prompt, jsonMode);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
     }
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          temperature: image ? 0.2 : 0.5,
-          responseMimeType: "application/json",
-        },
-      }),
-    });
-    const raw = await res.text();
-    if (!res.ok) {
-      if (res.status === 429 || res.status === 404) {
-        last = new Error(`${res.status}:${model}`);
-        continue;
-      }
-      throw new Error(raw.slice(0, 200));
-    }
-    const data = JSON.parse(raw);
-    const text =
-      data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ??
-      "";
-    if (text) return text;
-    last = new Error("EMPTY");
   }
-  throw last instanceof Error ? last : new Error("FAILED");
+
+  if (Deno.env.get("GEMINI_API_KEY")) {
+    try {
+      return await callGeminiOnly(prompt);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  if (Deno.env.get("OPENROUTER_API_KEY")) {
+    try {
+      return await callOpenRouter(prompt, undefined, jsonMode);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  throw new Error(errors.some((e) => /429|quota/i.test(e)) ? `QUOTA:${errors.join("|")}` : `TEXT_FAILED:${errors.join("|")}`);
+}
+
+/** Vision: Gemini, then OpenRouter VL. Groq free has no vision models. */
+async function callVisionLLM(
+  prompt: string,
+  image: { mime: string; data: string }
+): Promise<string> {
+  const errors: string[] = [];
+
+  if (Deno.env.get("GEMINI_API_KEY")) {
+    try {
+      return await callGeminiOnly(prompt, image);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  if (Deno.env.get("OPENROUTER_API_KEY")) {
+    try {
+      return await callOpenRouter(prompt, image, true);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  throw new Error(
+    errors.some((e) => /429|quota/i.test(e))
+      ? `QUOTA_VISION:${errors.join("|")}`
+      : `VISION_FAILED:${errors.join("|") || "no_provider"}`
+  );
+}
+
+/** Shopping Gemini+search — keep Gemini-only with optional Groq JSON fallback (no search). */
+async function callGeminiJson(prompt: string, withSearch = false): Promise<string> {
+  try {
+    return await callGeminiOnly(prompt, undefined, withSearch);
+  } catch {
+    if (withSearch) {
+      // Retry Gemini without search, then Groq
+      try {
+        return await callGeminiOnly(prompt, undefined, false);
+      } catch {
+        return await callTextLLM(prompt, true);
+      }
+    }
+    return await callTextLLM(prompt, true);
+  }
+}
+
+async function callGemini(prompt: string, image?: { mime: string; data: string }): Promise<string> {
+  if (image) return callVisionLLM(prompt, image);
+  return callTextLLM(prompt, true);
 }
 
 async function fetchOgImage(pageUrl: string): Promise<string | undefined> {

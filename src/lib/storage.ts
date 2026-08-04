@@ -7,12 +7,18 @@ import type {
   ClothingItem,
   FavoriteStore,
   PersistedState,
+  ThemePreference,
   WishItem,
 } from "@/data/types";
 import { buildWeekPlan, DEFAULT_PREFERENCES, normalizeDayPlan, SEED_WARDROBE } from "@/data/seed";
 
 const STORAGE_KEY = "@personal_stylist/v2";
 const PHOTO_DIR = `${FileSystem.documentDirectory}wardrobe/`;
+
+function normalizeTheme(raw?: string): ThemePreference {
+  if (raw === "light" || raw === "dark" || raw === "system") return raw;
+  return "system";
+}
 
 function normalizePreferences(raw?: Partial<AppPreferences> | null): AppPreferences {
   if (!raw) return { ...DEFAULT_PREFERENCES };
@@ -25,6 +31,7 @@ function normalizePreferences(raw?: Partial<AppPreferences> | null): AppPreferen
     onboardingComplete: raw.onboardingComplete ?? migrated,
     latitude: raw.latitude,
     longitude: raw.longitude,
+    theme: normalizeTheme(raw.theme),
   };
 }
 
@@ -61,6 +68,7 @@ function emptyState(): PersistedState {
     chatMessages: [defaultWelcome("")],
     wishList: [],
     favoriteStores: [],
+    pieceUseDays: {},
     seeded: seed,
   };
 }
@@ -96,6 +104,7 @@ export async function loadState(): Promise<PersistedState> {
       chatMessages,
       wishList: (parsed.wishList as WishItem[] | undefined) ?? [],
       favoriteStores: (parsed.favoriteStores as FavoriteStore[] | undefined) ?? [],
+      pieceUseDays: (parsed.pieceUseDays as Record<string, string[]> | undefined) ?? {},
       seeded: true,
     };
   } catch {

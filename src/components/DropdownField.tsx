@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   FlatList,
   Modal,
@@ -8,7 +8,8 @@ import {
   View,
 } from "react-native";
 import { ChevronDown } from "lucide-react-native";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function DropdownField({
@@ -24,6 +25,8 @@ export function DropdownField({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [open, setOpen] = useState(false);
 
   return (
@@ -68,7 +71,8 @@ export function DropdownField({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrap: { marginBottom: 12 },
   label: {
     fontFamily: fonts.mono,
@@ -91,7 +95,7 @@ const styles = StyleSheet.create({
   value: { flex: 1, fontFamily: fonts.body, fontSize: 13, color: colors.ink },
   placeholder: { color: colors.soft },
   modalRoot: { flex: 1, justifyContent: "flex-end" },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)" },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.overlay },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 24,
@@ -114,4 +118,5 @@ const styles = StyleSheet.create({
   optionOn: { backgroundColor: colors.creamWarm },
   optionText: { fontFamily: fonts.body, fontSize: 14, color: colors.ink, paddingHorizontal: 4 },
   optionTextOn: { fontFamily: fonts.bodyMedium, color: colors.goldDark },
-});
+  });
+}

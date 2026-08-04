@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy da Edge Function AI (Gemini no servidor)
+# Deploy da Edge Function AI (Gemini + Groq fallback)
 # Uso:
 #   export SUPABASE_ACCESS_TOKEN=sbp_...
 #   ./scripts/deploy-ai-function.sh
@@ -24,7 +24,7 @@ fi
 
 PROJECT_REF="${SUPABASE_PROJECT_REF:-mkeknwjrowkifopqhjkj}"
 
-# Carrega Gemini do .env local sem echo
+# Carrega secrets do .env local sem echo
 if [[ -f .env ]]; then
   # shellcheck disable=SC1091
   set -a
@@ -32,16 +32,25 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-if [[ -z "${EXPO_PUBLIC_GEMINI_API_KEY:-}" ]]; then
-  echo "EXPO_PUBLIC_GEMINI_API_KEY ausente no .env"
-  exit 1
-fi
-
 echo "Linking project $PROJECT_REF..."
 "$SUPABASE_BIN" link --project-ref "$PROJECT_REF" --yes
 
-echo "Setting GEMINI_API_KEY secret..."
-"$SUPABASE_BIN" secrets set "GEMINI_API_KEY=${EXPO_PUBLIC_GEMINI_API_KEY}" --project-ref "$PROJECT_REF"
+SECRET_ARGS=()
+if [[ -n "${EXPO_PUBLIC_GEMINI_API_KEY:-}" ]]; then
+  SECRET_ARGS+=("GEMINI_API_KEY=${EXPO_PUBLIC_GEMINI_API_KEY}")
+elif [[ -n "${GEMINI_API_KEY:-}" ]]; then
+  SECRET_ARGS+=("GEMINI_API_KEY=${GEMINI_API_KEY}")
+fi
+if [[ -n "${GROQ_API_KEY:-}" ]]; then
+  SECRET_ARGS+=("GROQ_API_KEY=${GROQ_API_KEY}")
+fi
+
+if [[ ${#SECRET_ARGS[@]} -eq 0 ]]; then
+  echo "Nenhuma chave GEMINI/GROQ no .env — deploy sem atualizar secrets."
+else
+  echo "Updating secrets (${#SECRET_ARGS[@]})..."
+  "$SUPABASE_BIN" secrets set "${SECRET_ARGS[@]}" --project-ref "$PROJECT_REF"
+fi
 
 echo "Deploying function ai..."
 "$SUPABASE_BIN" functions deploy ai --project-ref "$PROJECT_REF" --yes

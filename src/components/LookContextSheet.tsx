@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { LookContextPicker } from "@/components/LookContextPicker";
 import type { FormalityId, OccasionId } from "@/data/types";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function LookContextSheet({
@@ -22,6 +23,8 @@ export function LookContextSheet({
   onClose: () => void;
   title?: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.root}>
@@ -45,9 +48,10 @@ export function LookContextSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, justifyContent: "flex-end" },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)" },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.overlay },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 28,
@@ -74,4 +78,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   doneText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.white },
-});
+  });
+}

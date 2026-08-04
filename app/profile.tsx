@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,18 +11,27 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Bell, ChevronRight, Cloud, HelpCircle, LogOut, Shield } from "lucide-react-native";
-import { STYLE_TAG_OPTIONS } from "@/data/types";
+import { Bell, ChevronRight, Cloud, HelpCircle, LogOut, Monitor, Moon, Shield, Sun } from "lucide-react-native";
+import { STYLE_TAG_OPTIONS, type ThemePreference } from "@/data/types";
 import { searchCities, type GeoCity } from "@/lib/weather";
 import { useAuth } from "@/store/auth-store";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
+
+const THEME_OPTIONS: { id: ThemePreference; label: string; icon: typeof Sun }[] = [
+  { id: "light", label: "Claro", icon: Sun },
+  { id: "dark", label: "Escuro", icon: Moon },
+  { id: "system", label: "Sistema", icon: Monitor },
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { preferences, updatePreferences, refreshWeather } = useWardrobe();
   const { configured, user, signOut } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState(preferences.displayName);
   const [cityQuery, setCityQuery] = useState(preferences.city);
   const [cities, setCities] = useState<GeoCity[]>([]);
@@ -98,6 +107,10 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const onThemeChange = async (theme: ThemePreference) => {
+    await updatePreferences({ theme });
+  };
+
   const menu = [
     {
       icon: Cloud,
@@ -156,6 +169,27 @@ export default function ProfileScreen() {
             <Text style={styles.logoutText}>{signingOut ? "Saindo…" : "Sair da conta"}</Text>
           </Pressable>
         ) : null}
+
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Aparência</Text>
+          <View style={styles.themeRow}>
+            {THEME_OPTIONS.map(({ id, label, icon: Icon }) => {
+              const on = (preferences.theme ?? "system") === id;
+              return (
+                <Pressable
+                  key={id}
+                  onPress={() => onThemeChange(id)}
+                  style={[styles.themeOption, on && styles.themeOptionOn]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Tema ${label}`}
+                >
+                  <Icon size={16} color={on ? colors.white : colors.muted} />
+                  <Text style={[styles.themeOptionText, on && styles.themeOptionTextOn]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Nome</Text>
@@ -231,118 +265,134 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  content: { padding: 24, paddingBottom: 40 },
-  hero: {
-    backgroundColor: colors.ink,
-    borderRadius: 28,
-    padding: 24,
-    marginBottom: 16,
-  },
-  eyebrow: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 2,
-    textTransform: "uppercase",
-  },
-  name: { fontFamily: fonts.display, fontSize: 22, color: colors.white, marginTop: 8 },
-  city: { fontFamily: fonts.body, fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 4 },
-  email: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: "rgba(255,255,255,0.65)",
-    marginTop: 10,
-  },
-  badge: {
-    alignSelf: "flex-start",
-    marginTop: 16,
-    backgroundColor: colors.gold,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  badgeText: {
-    fontFamily: fonts.monoMedium,
-    fontSize: 10,
-    color: colors.white,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    paddingVertical: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(185,28,28,0.25)",
-  },
-  logoutText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#B91C1C" },
-  card: { backgroundColor: colors.white, borderRadius: 20, padding: 20, marginBottom: 16 },
-  cardLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 12,
-    color: colors.muted,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 12,
-  },
-  input: {
-    backgroundColor: colors.cream,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  saveBtn: {
-    marginTop: 12,
-    backgroundColor: colors.ink,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  saveText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.white },
-  cityRow: {
-    marginTop: 8,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  cityRowText: { fontFamily: fonts.body, fontSize: 13, color: colors.ink },
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  tag: {
-    backgroundColor: colors.creamDark,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  tagOn: { backgroundColor: colors.ink },
-  tagText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.ink },
-  tagTextOn: { color: colors.white },
-  menu: { backgroundColor: colors.white, borderRadius: 20, overflow: "hidden" },
-  menuRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  menuBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  menuIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    backgroundColor: colors.cream,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuLabel: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
-  menuSub: { fontFamily: fonts.body, fontSize: 11, color: colors.muted, marginTop: 2 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.cream },
+    content: { padding: 24, paddingBottom: 40 },
+    hero: {
+      backgroundColor: colors.ink,
+      borderRadius: 28,
+      padding: 24,
+      marginBottom: 16,
+    },
+    eyebrow: {
+      fontFamily: fonts.mono,
+      fontSize: 10,
+      color: colors.onInk,
+      opacity: 0.4,
+      letterSpacing: 2,
+      textTransform: "uppercase",
+    },
+    name: { fontFamily: fonts.display, fontSize: 22, color: colors.white, marginTop: 8 },
+    city: { fontFamily: fonts.body, fontSize: 12, color: colors.onInk, opacity: 0.5, marginTop: 4 },
+    email: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: colors.onInk,
+      opacity: 0.65,
+      marginTop: 10,
+    },
+    badge: {
+      alignSelf: "flex-start",
+      marginTop: 16,
+      backgroundColor: colors.gold,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+    },
+    badgeText: {
+      fontFamily: fonts.monoMedium,
+      fontSize: 10,
+      color: colors.white,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+    },
+    logoutBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      backgroundColor: colors.white,
+      borderRadius: 16,
+      paddingVertical: 14,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: "rgba(185,28,28,0.25)",
+    },
+    logoutText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: "#B91C1C" },
+    card: { backgroundColor: colors.white, borderRadius: 20, padding: 20, marginBottom: 16 },
+    cardLabel: {
+      fontFamily: fonts.mono,
+      fontSize: 12,
+      color: colors.muted,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+      marginBottom: 12,
+    },
+    themeRow: { flexDirection: "row", gap: 8 },
+    themeOption: {
+      flex: 1,
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: colors.cream,
+      borderRadius: 14,
+      paddingVertical: 14,
+    },
+    themeOptionOn: { backgroundColor: colors.ink },
+    themeOptionText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.muted },
+    themeOptionTextOn: { color: colors.onInk },
+    input: {
+      backgroundColor: colors.cream,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: colors.ink,
+    },
+    saveBtn: {
+      marginTop: 12,
+      backgroundColor: colors.ink,
+      borderRadius: 12,
+      paddingVertical: 12,
+      alignItems: "center",
+    },
+    saveText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.white },
+    cityRow: {
+      marginTop: 8,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    cityRowText: { fontFamily: fonts.body, fontSize: 13, color: colors.ink },
+    tags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    tag: {
+      backgroundColor: colors.creamDark,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    tagOn: { backgroundColor: colors.ink },
+    tagText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.ink },
+    tagTextOn: { color: colors.white },
+    menu: { backgroundColor: colors.white, borderRadius: 20, overflow: "hidden" },
+    menuRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+    },
+    menuBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+    menuIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 12,
+      backgroundColor: colors.cream,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    menuLabel: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
+    menuSub: { fontFamily: fonts.body, fontSize: 11, color: colors.muted, marginTop: 2 },
+  });
+}

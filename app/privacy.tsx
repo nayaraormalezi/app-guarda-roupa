@@ -1,10 +1,13 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export default function PrivacyScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -35,11 +38,13 @@ export default function PrivacyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  content: { padding: 24, paddingBottom: 40 },
-  title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink, marginBottom: 12 },
-  h: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink, marginTop: 18, marginBottom: 6 },
-  p: { fontFamily: fonts.body, fontSize: 13, color: colors.muted, lineHeight: 20 },
-  meta: { fontFamily: fonts.mono, fontSize: 10, color: colors.soft, marginTop: 24 },
-});
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.cream },
+    content: { padding: 24, paddingBottom: 40 },
+    title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink, marginBottom: 12 },
+    h: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink, marginTop: 18, marginBottom: 6 },
+    p: { fontFamily: fonts.body, fontSize: 13, color: colors.muted, lineHeight: 20 },
+    meta: { fontFamily: fonts.mono, fontSize: 10, color: colors.soft, marginTop: 24 },
+  });
+}

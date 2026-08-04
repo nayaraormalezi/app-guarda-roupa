@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export function EmptyState({ title, subtitle, cta, onPress }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.wrap}>
       <Text style={styles.title}>{title}</Text>
@@ -24,7 +27,8 @@ export function EmptyState({ title, subtitle, cta, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrap: {
     padding: 24,
     alignItems: "center",
@@ -53,4 +57,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   ctaText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.white },
-});
+  });
+}

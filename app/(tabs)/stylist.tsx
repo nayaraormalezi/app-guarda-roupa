@@ -16,7 +16,8 @@ import { outfitToRefs } from "@/data/types";
 import { askStylist } from "@/lib/stylist-chat";
 import { createId } from "@/lib/storage";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 const QUICK = [
@@ -35,19 +36,27 @@ export default function StylistScreen() {
     chatMessages,
     appendChatMessages,
     resolveOutfitRefs,
+    applyStylistLook,
+    getTodayPlan,
   } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const listRef = useRef<FlatList>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [localMsgs, setLocalMsgs] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
-    setLocalMsgs(
-      chatMessages.map((m) => ({
+    setLocalMsgs((prev) => {
+      const fromStore = chatMessages.map((m) => ({
         ...m,
         outfit: m.outfit ?? (m.outfitRefs ? resolveOutfitRefs(m.outfitRefs) : undefined),
-      }))
-    );
+      }));
+      const storeIds = new Set(fromStore.map((m) => m.id));
+      // Keep optimistic messages not yet flushed to the store
+      const pending = prev.filter((m) => !storeIds.has(m.id));
+      return pending.length ? [...fromStore, ...pending] : fromStore;
+    });
   }, [chatMessages, resolveOutfitRefs]);
 
   const hydrated = useMemo(() => localMsgs, [localMsgs]);
@@ -75,6 +84,9 @@ export default function StylistScreen() {
         text: reply.text,
         outfit: reply.outfit,
         outfitRefs: reply.outfit ? outfitToRefs(reply.outfit) : undefined,
+        occasionId: reply.occasionId,
+        formalityId: reply.formalityId,
+        planDayId: reply.planDayId,
       };
       setLocalMsgs((m) => [...m, aiMsg]);
       await appendChatMessages([userMsg, aiMsg]);
@@ -92,9 +104,22 @@ export default function StylistScreen() {
     }
   };
 
-  const saveOutfit = async (outfit: Outfit) => {
-    await saveLook(outfit, "Look do stylist");
-    Alert.alert("Look salvo", "Disponível em Mais → Looks salvos.");
+  const acceptOutfit = async (msg: ChatMessage, outfit: Outfit) => {
+    const dayId = msg.planDayId ?? getTodayPlan()?.id ?? weekPlan[0]?.id;
+    if (!dayId) {
+      Alert.alert("Planejador", "Não encontrei o dia no planejador. Tente de novo.");
+      return;
+    }
+    const day = weekPlan.find((d) => d.id === dayId);
+    await applyStylistLook({
+      dayId,
+      outfit,
+      occasionId: msg.occasionId,
+      formalityId: msg.formalityId,
+    });
+    await saveLook(outfit, "Look do stylist", msg.occasionId, msg.formalityId);
+    const when = day ? `${day.day}, ${day.date}` : "o dia sugerido";
+    Alert.alert("Look aceito", `Aplicado no planejador (${when}) e salvo nos favoritos.`);
   };
 
   return (
@@ -133,7 +158,7 @@ export default function StylistScreen() {
               {item.outfit && Object.values(item.outfit).some(Boolean) && (
                 <OutfitCardView
                   outfit={item.outfit}
-                  onSave={() => saveOutfit(item.outfit!)}
+                  onSave={() => acceptOutfit(item, item.outfit!)}
                   onSwap={() => send("Monte outra combinação com peças diferentes")}
                 />
               )}
@@ -186,7 +211,8 @@ export default function StylistScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   header: {
     flexDirection: "row",
@@ -260,4 +286,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-});
+  });
+}

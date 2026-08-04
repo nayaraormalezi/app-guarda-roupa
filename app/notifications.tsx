@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 const KEY = "@personal_stylist/notify_tomorrow";
@@ -33,6 +34,8 @@ async function scheduleTomorrowLookReminder() {
 }
 
 export default function NotificationsScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [enabled, setEnabled] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -104,7 +107,8 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 24 },
   title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink },
@@ -129,4 +133,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   secondaryText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
-});
+  });
+}

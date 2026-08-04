@@ -14,14 +14,24 @@ import { BarChart2, Bookmark, BookmarkCheck, ChevronDown, ChevronRight, RefreshC
 import { CityPickerSheet } from "@/components/CityPickerSheet";
 import { LookContextSheet } from "@/components/LookContextSheet";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { buildOutfit, countCombinations, outfitPieces } from "@/lib/outfit-engine";
-import { findSavedLookForOutfit, getFormality, getOccasion } from "@/data/types";
+import { buildOutfit, countCombinations, outfitPieceIds, outfitPieces } from "@/lib/outfit-engine";
+import { defaultFormalityFor, findSavedLookForOutfit, getFormality, getOccasion } from "@/data/types";
 import { formatTempRange } from "@/lib/weather";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
+
+function greetingForHour(date = new Date()): string {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return "Bom dia";
+  if (hour >= 12 && hour < 18) return "Boa tarde";
+  return "Boa noite";
+}
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     wardrobe,
     weekPlan,
@@ -36,12 +46,15 @@ export default function HomeScreen() {
     refreshTodayLook,
     setDayOccasion,
     setDayFormality,
+    setDayOutfit,
+    resolveDayOutfit,
+    getTodayPlan,
   } = useWardrobe();
   const [contextOpen, setContextOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
 
-  const today = weekPlan[0];
-  const look = useMemo(
+  const today = getTodayPlan();
+  const generated = useMemo(
     () =>
       buildOutfit(wardrobe, today?.occasionId ?? "trabalho", today?.temp, {
         variant: todayLookVariant,
@@ -52,11 +65,17 @@ export default function HomeScreen() {
     [wardrobe, today, todayLookVariant, todayExcludeIds]
   );
 
-  const pieces = look.outfit ? outfitPieces(look.outfit) : [];
+  const savedToday = today ? resolveDayOutfit(today) : null;
+  const outfit = savedToday ?? generated.outfit ?? null;
+  const lookMessage = savedToday
+    ? "Look ajustado com peças do seu guarda-roupa."
+    : generated.message;
+
+  const pieces = outfit ? outfitPieces(outfit) : [];
   const hero = pieces[0]?.item;
   const savedMatch = useMemo(
-    () => (look.outfit ? findSavedLookForOutfit(savedLooks, look.outfit) : undefined),
-    [look.outfit, savedLooks]
+    () => (outfit ? findSavedLookForOutfit(savedLooks, outfit) : undefined),
+    [outfit, savedLooks]
   );
   const isSaved = Boolean(savedMatch);
   const occasion = today ? getOccasion(today.occasionId) : null;
@@ -67,8 +86,8 @@ export default function HomeScreen() {
   }, []);
 
   const onToggleSave = async () => {
-    if (!look.outfit) {
-      Alert.alert("Look incompleto", look.message);
+    if (!outfit) {
+      Alert.alert("Look incompleto", lookMessage);
       return;
     }
     if (savedMatch) {
@@ -76,14 +95,60 @@ export default function HomeScreen() {
       Alert.alert("Removido", "Look removido dos Looks salvos.");
       return;
     }
-    await saveLook(look.outfit, "Look de hoje", today?.occasionId, today?.formalityId);
+    await saveLook(outfit, "Look de hoje", today?.occasionId, today?.formalityId);
     Alert.alert("Salvo", "Look adicionado em Looks salvos.");
+  };
+
+  const onChangeLook = async () => {
+    if (!today) {
+      refreshTodayLook(outfit);
+      return;
+    }
+    const nextExclude = outfit ? outfitPieceIds(outfit) : [];
+    const nextVariant = todayLookVariant + 1;
+    refreshTodayLook(outfit);
+    const result = buildOutfit(wardrobe, today.occasionId, today.temp, {
+      formality: today.formalityId,
+      tempMin: today.tempMin,
+      variant: nextVariant,
+      excludeIds: nextExclude,
+    });
+    await setDayOutfit(today.id, result.outfit ?? null);
+  };
+
+  const onOccasionChange = async (id: Parameters<typeof setDayOccasion>[1]) => {
+    if (!today) return;
+    const formalityId = defaultFormalityFor(id);
+    const nextVariant = todayLookVariant + 1;
+    await setDayOccasion(today.id, id);
+    refreshTodayLook(null);
+    const result = buildOutfit(wardrobe, id, today.temp, {
+      formality: formalityId,
+      tempMin: today.tempMin,
+      variant: nextVariant,
+      excludeIds: [],
+    });
+    await setDayOutfit(today.id, result.outfit ?? null);
+  };
+
+  const onFormalityChange = async (id: Parameters<typeof setDayFormality>[1]) => {
+    if (!today) return;
+    const nextVariant = todayLookVariant + 1;
+    await setDayFormality(today.id, id);
+    refreshTodayLook(null);
+    const result = buildOutfit(wardrobe, today.occasionId, today.temp, {
+      formality: id,
+      tempMin: today.tempMin,
+      variant: nextVariant,
+      excludeIds: [],
+    });
+    await setDayOutfit(today.id, result.outfit ?? null);
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.eyebrow}>Bom dia</Text>
+        <Text style={styles.eyebrow}>{greetingForHour()}</Text>
         <Text style={styles.hero}>{preferences.displayName || "Olá"}</Text>
         <View style={styles.weatherRow}>
           <Pressable onPress={() => refreshWeather()} hitSlop={8}>
@@ -153,8 +218,8 @@ export default function HomeScreen() {
               <Pressable
                 style={styles.primaryBtn}
                 onPress={() => {
-                  if (!look.outfit) {
-                    Alert.alert("Look incompleto", look.message);
+                  if (!outfit) {
+                    Alert.alert("Look incompleto", lookMessage);
                     return;
                   }
                   router.push("/look/today");
@@ -164,7 +229,7 @@ export default function HomeScreen() {
               </Pressable>
               <Pressable
                 style={styles.iconBtn}
-                onPress={() => refreshTodayLook(look.outfit)}
+                onPress={() => void onChangeLook()}
                 accessibilityLabel="Mudar look"
               >
                 <RefreshCw size={15} color={colors.muted} />
@@ -172,9 +237,9 @@ export default function HomeScreen() {
             </View>
 
             <Pressable
-              style={[styles.saveBtn, isSaved && styles.saveBtnOn, !look.outfit && { opacity: 0.45 }]}
+              style={[styles.saveBtn, isSaved && styles.saveBtnOn, !outfit && { opacity: 0.45 }]}
               onPress={onToggleSave}
-              disabled={!look.outfit}
+              disabled={!outfit}
             >
               {isSaved ? (
                 <BookmarkCheck size={14} color={colors.goldDark} />
@@ -197,14 +262,17 @@ export default function HomeScreen() {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekRow}>
-          {weekPlan.slice(0, 6).map((d, i) => {
+          {weekPlan.slice(0, 6).map((d) => {
             const occ = getOccasion(d.occasionId);
-            const preview = buildOutfit(wardrobe, d.occasionId, d.temp, {
-              formality: d.formalityId,
-              tempMin: d.tempMin,
-            });
-            const thumb = preview.outfit ? outfitPieces(preview.outfit)[0]?.item.img : undefined;
-            const isToday = i === 0;
+            const resolved = resolveDayOutfit(d);
+            const preview =
+              resolved ??
+              buildOutfit(wardrobe, d.occasionId, d.temp, {
+                formality: d.formalityId,
+                tempMin: d.tempMin,
+              }).outfit;
+            const thumb = preview ? outfitPieces(preview)[0]?.item.img : undefined;
+            const isToday = today?.id === d.id;
             return (
               <Pressable
                 key={d.id}
@@ -261,8 +329,8 @@ export default function HomeScreen() {
           visible={contextOpen}
           occasionId={today.occasionId}
           formalityId={today.formalityId}
-          onOccasionChange={(id) => setDayOccasion(today.id, id)}
-          onFormalityChange={(id) => setDayFormality(today.id, id)}
+          onOccasionChange={onOccasionChange}
+          onFormalityChange={onFormalityChange}
           onClose={() => setContextOpen(false)}
         />
       )}
@@ -284,7 +352,8 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { paddingHorizontal: 24, paddingBottom: 32 },
   eyebrow: {
@@ -341,7 +410,8 @@ const styles = StyleSheet.create({
   startBody: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: "rgba(255,255,255,0.6)",
+    color: colors.onInk,
+    opacity: 0.6,
     marginTop: 8,
     lineHeight: 19,
   },
@@ -462,4 +532,5 @@ const styles = StyleSheet.create({
   },
   linkTitle: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
   linkSub: { fontFamily: fonts.body, fontSize: 11, color: colors.muted, marginTop: 2 },
-});
+  });
+}

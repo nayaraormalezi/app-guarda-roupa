@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -14,7 +14,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MapPin, Search } from "lucide-react-native";
 import { searchCities, type GeoCity } from "@/lib/weather";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function CityPickerSheet({
@@ -29,6 +30,8 @@ export function CityPickerSheet({
   onSelect: (city: GeoCity, label: string) => void | Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState("");
   const [cities, setCities] = useState<GeoCity[]>([]);
@@ -145,11 +148,12 @@ export function CityPickerSheet({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   root: { flex: 1, justifyContent: "flex-end" },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: colors.overlay,
   },
   sheet: {
     zIndex: 2,
@@ -214,4 +218,5 @@ const styles = StyleSheet.create({
   },
   cancel: { marginTop: 8, alignItems: "center", paddingVertical: 14 },
   cancelText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.muted },
-});
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -14,7 +14,8 @@ import { Camera, Shirt, Sparkles } from "lucide-react-native";
 import { STYLE_TAG_OPTIONS } from "@/data/types";
 import { searchCities, type GeoCity } from "@/lib/weather";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 const STEPS = [
@@ -57,6 +58,8 @@ const START_TIPS = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const { completeOnboarding, preferences } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [step, setStep] = useState(0);
   const [name, setName] = useState(preferences.displayName || "");
   const [cityQuery, setCityQuery] = useState(preferences.city || "");
@@ -271,7 +274,8 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 28, paddingTop: 40, paddingBottom: 40 },
   eyebrow: {
@@ -375,4 +379,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   secondaryText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.ink },
-});
+  });
+}

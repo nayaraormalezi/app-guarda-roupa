@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   FORMALITIES,
@@ -6,7 +6,8 @@ import {
   type FormalityId,
   type OccasionId,
 } from "@/data/types";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export function LookContextPicker({
@@ -20,6 +21,8 @@ export function LookContextPicker({
   onOccasionChange: (id: OccasionId) => void;
   onFormalityChange: (id: FormalityId) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const formality = FORMALITIES.find((f) => f.id === formalityId) ?? FORMALITIES[1];
 
   return (
@@ -65,7 +68,8 @@ export function LookContextPicker({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   wrap: { gap: 8 },
   label: {
     fontFamily: fonts.mono,
@@ -110,4 +114,5 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 2,
   },
-});
+  });
+}

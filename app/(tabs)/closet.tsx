@@ -22,7 +22,8 @@ import {
   STYLE_OPTIONS,
 } from "@/data/catalog";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 const CATEGORY_CHIPS: { id: string; label: string }[] = [
@@ -33,6 +34,8 @@ const CATEGORY_CHIPS: { id: string; label: string }[] = [
 export default function ClosetScreen() {
   const router = useRouter();
   const { wardrobe, filterWardrobe } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Todos");
   const [brand, setBrand] = useState("Todas");
@@ -199,7 +202,8 @@ export default function ClosetScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   header: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 12, gap: 14 },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -282,4 +286,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 64,
   },
-});
+  });
+}

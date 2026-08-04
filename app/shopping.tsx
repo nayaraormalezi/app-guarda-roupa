@@ -23,7 +23,8 @@ import {
   type ShoppingProduct,
 } from "@/lib/shopping-recs";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export default function ShoppingScreen() {
@@ -37,6 +38,8 @@ export default function ShoppingScreen() {
     addFavoriteStore,
     removeFavoriteStore,
   } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [storeName, setStoreName] = useState("");
   const [storeUrl, setStoreUrl] = useState("");
@@ -384,7 +387,8 @@ export default function ShoppingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 24, paddingBottom: 40 },
   sub: { fontFamily: fonts.body, fontSize: 12, color: colors.muted, marginBottom: 20, lineHeight: 18 },
@@ -566,4 +570,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   wishBuyText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.goldDark },
-});
+  });
+}

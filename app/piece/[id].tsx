@@ -32,13 +32,16 @@ import {
 } from "@/data/catalog";
 import type { Category, FormalityId, Status } from "@/data/types";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export default function PieceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { getItem, updateItem, deleteItem } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const item = getItem(id);
 
   const [name, setName] = useState(item?.name ?? "");
@@ -148,8 +151,8 @@ export default function PieceDetailScreen() {
           {item.uses}× usos · {CATEGORY_LABELS[item.category]} · {item.subcategory}
         </Text>
 
-        <Field label="Nome" value={name} onChangeText={setName} />
-        <Field label="Marca" value={brand} onChangeText={setBrand} />
+        <Field label="Nome" value={name} onChangeText={setName} styles={styles} />
+        <Field label="Marca" value={brand} onChangeText={setBrand} styles={styles} />
 
         <DropdownField
           label="Categoria"
@@ -217,10 +220,12 @@ function Field({
   label,
   value,
   onChangeText,
+  styles,
 }: {
   label: string;
   value: string;
   onChangeText: (t: string) => void;
+  styles: ReturnType<typeof makeStyles>;
 }) {
   return (
     <View style={{ marginBottom: 12 }}>
@@ -230,7 +235,8 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 24, paddingBottom: 40 },
   img: { width: "100%", height: 280, borderRadius: 24, backgroundColor: colors.creamDark, marginBottom: 12 },
@@ -271,4 +277,5 @@ const styles = StyleSheet.create({
   deleteText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#B91C1C" },
   missing: { fontFamily: fonts.display, fontSize: 20, color: colors.ink, textAlign: "center", marginTop: 80 },
   backLink: { fontFamily: fonts.bodyMedium, color: colors.goldDark, textAlign: "center", marginTop: 16 },
-});
+  });
+}

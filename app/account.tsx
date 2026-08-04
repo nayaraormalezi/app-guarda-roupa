@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,8 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/store/auth-store";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export default function AccountScreen() {
@@ -30,6 +31,8 @@ export default function AccountScreen() {
     syncNow,
   } = useAuth();
   const { preferences, replacePersistedState, getPersistedSnapshot, updatePreferences } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -217,7 +220,8 @@ export default function AccountScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 24 },
   title: { fontFamily: fonts.display, fontSize: 28, color: colors.ink },
@@ -282,4 +286,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.goldDark,
   },
-});
+  });
+}

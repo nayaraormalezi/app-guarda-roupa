@@ -5,11 +5,14 @@ import { CreditCard, Eye, Repeat, Shirt, TrendingUp } from "lucide-react-native"
 import { categoryLabel } from "@/data/catalog";
 import { countCombinations } from "@/lib/outfit-engine";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export default function StatsScreen() {
   const { wardrobe } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {};
@@ -110,7 +113,8 @@ export default function StatsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 24, gap: 16, paddingBottom: 40 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
@@ -152,4 +156,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 6,
   },
-});
+  });
+}

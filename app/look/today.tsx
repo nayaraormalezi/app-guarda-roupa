@@ -10,23 +10,29 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Bookmark, BookmarkCheck, RefreshCw, Shuffle } from "lucide-react-native";
+import { Bookmark, BookmarkCheck, Heart, Plus, RefreshCw, Shuffle, X } from "lucide-react-native";
 import { LookContextPicker } from "@/components/LookContextPicker";
+import { AddPieceSheet } from "@/components/AddPieceSheet";
+import { FavoriteLookSheet } from "@/components/FavoriteLookSheet";
 import { SwapPieceSheet } from "@/components/SwapPieceSheet";
 import { categoryLabel, STATUS_LABEL } from "@/data/catalog";
 import type { ClothingItem, Outfit } from "@/data/types";
-import { findSavedLookForOutfit, getFormality, getOccasion } from "@/data/types";
+import { defaultFormalityFor, findSavedLookForOutfit, getFormality, getOccasion } from "@/data/types";
 import {
   alternativesForSlot,
   buildOutfit,
+  emptyOutfitSlots,
+  outfitPieceIds,
   outfitPieces,
+  removeOutfitSlot,
   slotLabel,
   swapOutfitSlot,
   type OutfitSlot,
 } from "@/lib/outfit-engine";
 import { formatTempRange } from "@/lib/weather";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 function pieceSlot(label: string, item: ClothingItem): OutfitSlot {
@@ -35,6 +41,7 @@ function pieceSlot(label: string, item: ClothingItem): OutfitSlot {
   if (label === "Vestido" || label === "Macacão") return "dress";
   if (label === "Casaco") return "outerwear";
   if (label === "Sapato") return "shoe";
+  if (label === "Acessório") return "accessory";
   return "bag";
 }
 
@@ -42,7 +49,6 @@ export default function TodayLookScreen() {
   const router = useRouter();
   const {
     wardrobe,
-    weekPlan,
     preferences,
     savedLooks,
     todayLookVariant,
@@ -55,9 +61,13 @@ export default function TodayLookScreen() {
     setDayOutfit,
     markDayUsed,
     resolveDayOutfit,
+    getTodayPlan,
+    resolveLook,
   } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const today = weekPlan[0];
+  const today = getTodayPlan();
   const generated = useMemo(
     () =>
       buildOutfit(wardrobe, today?.occasionId ?? "trabalho", today?.temp, {
@@ -71,6 +81,8 @@ export default function TodayLookScreen() {
 
   const [outfitOverride, setOutfitOverride] = useState<Outfit | null>(null);
   const [swapSlot, setSwapSlot] = useState<OutfitSlot | null>(null);
+  const [favoriteSheet, setFavoriteSheet] = useState(false);
+  const [addPieceSheet, setAddPieceSheet] = useState(false);
 
   useEffect(() => {
     const saved = today ? resolveDayOutfit(today) : null;
@@ -82,6 +94,7 @@ export default function TodayLookScreen() {
     ? "Look ajustado com peças do seu guarda-roupa."
     : generated.message;
   const pieces = outfit ? outfitPieces(outfit) : [];
+  const canAddPiece = emptyOutfitSlots(outfit).length > 0;
   const occ = today ? getOccasion(today.occasionId) : null;
   const formality = today ? getFormality(today.formalityId) : null;
   const hero = pieces[0]?.item;
@@ -105,9 +118,25 @@ export default function TodayLookScreen() {
     );
   }, [swapSlot, wardrobe, today, outfit]);
 
-  const persistOutfit = async (next: Outfit) => {
+  const persistOutfit = async (next: Outfit | null) => {
     setOutfitOverride(next);
-    if (today) await setDayOutfit(today.id, next);
+    if (today?.id) await setDayOutfit(today.id, next);
+  };
+
+  const buildAndPersist = async (opts: {
+    occasionId: NonNullable<typeof today>["occasionId"];
+    formalityId: NonNullable<typeof today>["formalityId"];
+    variant: number;
+    excludeIds: string[];
+  }) => {
+    if (!today) return;
+    const result = buildOutfit(wardrobe, opts.occasionId, today.temp, {
+      formality: opts.formalityId,
+      tempMin: today.tempMin,
+      variant: opts.variant,
+      excludeIds: opts.excludeIds,
+    });
+    await persistOutfit(result.outfit ?? null);
   };
 
   const onToggleSave = async () => {
@@ -115,6 +144,7 @@ export default function TodayLookScreen() {
       Alert.alert("Look incompleto", message);
       return;
     }
+    await persistOutfit(outfit);
     if (savedMatch) {
       await deleteLook(savedMatch.id);
       Alert.alert("Removido", "Look removido dos Looks salvos.");
@@ -127,17 +157,27 @@ export default function TodayLookScreen() {
     ]);
   };
 
-  const onChangeLook = () => {
-    if (today) void setDayOutfit(today.id, null);
-    setOutfitOverride(null);
+  const onChangeLook = async () => {
+    if (!today) {
+      refreshTodayLook(outfit);
+      return;
+    }
+    const nextExclude = outfit ? outfitPieceIds(outfit) : [];
+    const nextVariant = todayLookVariant + 1;
     refreshTodayLook(outfit);
+    await buildAndPersist({
+      occasionId: today.occasionId,
+      formalityId: today.formalityId,
+      variant: nextVariant,
+      excludeIds: nextExclude,
+    });
   };
 
   const onUseToday = async () => {
-    if (!pieces.length || !today) return;
-    await persistOutfit(outfit!);
+    if (!pieces.length || !today || !outfit) return;
+    await persistOutfit(outfit);
     await markDayUsed(today.id, true);
-    Alert.alert("Look do dia", "Marcado como usado e peças registradas.");
+    Alert.alert("Look do dia", "Marcado como usado, salvo no planejamento e peças registradas.");
   };
 
   const onPickSwap = async (item: ClothingItem) => {
@@ -145,6 +185,24 @@ export default function TodayLookScreen() {
     const next = swapOutfitSlot(outfit, swapSlot, item);
     await persistOutfit(next);
     setSwapSlot(null);
+  };
+
+  const onPickFavorite = async (_look: (typeof savedLooks)[number], next: Outfit) => {
+    await persistOutfit(next);
+    setFavoriteSheet(false);
+  };
+
+  const onAddPiece = async (slot: OutfitSlot, item: ClothingItem) => {
+    const next = swapOutfitSlot(outfit ?? {}, slot, item);
+    await persistOutfit(next);
+    setAddPieceSheet(false);
+  };
+
+  const onRemovePiece = async (slot: OutfitSlot) => {
+    if (!outfit) return;
+    const next = removeOutfitSlot(outfit, slot);
+    const remaining = outfitPieces(next);
+    await persistOutfit(remaining.length ? next : null);
   };
 
   return (
@@ -166,8 +224,29 @@ export default function TodayLookScreen() {
             <LookContextPicker
               occasionId={today.occasionId}
               formalityId={today.formalityId}
-              onOccasionChange={(id) => setDayOccasion(today.id, id)}
-              onFormalityChange={(id) => setDayFormality(today.id, id)}
+              onOccasionChange={async (id) => {
+                const formalityId = defaultFormalityFor(id);
+                const nextVariant = todayLookVariant + 1;
+                await setDayOccasion(today.id, id);
+                refreshTodayLook(null);
+                await buildAndPersist({
+                  occasionId: id,
+                  formalityId,
+                  variant: nextVariant,
+                  excludeIds: [],
+                });
+              }}
+              onFormalityChange={async (id) => {
+                const nextVariant = todayLookVariant + 1;
+                await setDayFormality(today.id, id);
+                refreshTodayLook(null);
+                await buildAndPersist({
+                  occasionId: today.occasionId,
+                  formalityId: id,
+                  variant: nextVariant,
+                  excludeIds: [],
+                });
+              }}
             />
           </View>
         )}
@@ -184,35 +263,56 @@ export default function TodayLookScreen() {
 
         <Text style={styles.section}>Peças do look</Text>
         {pieces.length === 0 ? (
-          <Text style={styles.empty}>Adicione peças no guarda-roupa para gerar sugestões.</Text>
+          <View>
+            <Text style={styles.empty}>Adicione peças no guarda-roupa para gerar sugestões.</Text>
+            <Pressable style={styles.addPieceBtn} onPress={() => setAddPieceSheet(true)}>
+              <Plus size={14} color={colors.ink} />
+              <Text style={styles.addPieceText}>Adicionar peça</Text>
+            </Pressable>
+          </View>
         ) : (
-          pieces.map(({ label, item }) => (
-            <View key={`${label}-${item.id}`} style={styles.pieceRow}>
-              <Pressable
-                style={{ flexDirection: "row", gap: 14, flex: 1, alignItems: "center" }}
-                onPress={() => router.push(`/piece/${item.id}`)}
-              >
-                <Image source={{ uri: item.img }} style={styles.thumb} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.pieceRole}>{label}</Text>
-                  <Text style={styles.pieceName} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.pieceSub} numberOfLines={1}>
-                    {item.brand} · {item.color} · {categoryLabel(item.category)}
-                  </Text>
-                  <Text style={styles.pieceStatus}>{STATUS_LABEL[item.status]}</Text>
-                </View>
+          <View>
+            {pieces.map(({ label, item }) => (
+              <View key={`${label}-${item.id}`} style={styles.pieceRow}>
+                <Pressable
+                  style={{ flexDirection: "row", gap: 14, flex: 1, alignItems: "center" }}
+                  onPress={() => router.push(`/piece/${item.id}`)}
+                >
+                  <Image source={{ uri: item.img }} style={styles.thumb} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pieceRole}>{label}</Text>
+                    <Text style={styles.pieceName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.pieceSub} numberOfLines={1}>
+                      {item.brand} · {item.color} · {categoryLabel(item.category)}
+                    </Text>
+                    <Text style={styles.pieceStatus}>{STATUS_LABEL[item.status]}</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  style={styles.swapBtn}
+                  onPress={() => setSwapSlot(pieceSlot(label, item))}
+                  accessibilityLabel={`Trocar ${label}`}
+                >
+                  <Shuffle size={14} color={colors.ink} />
+                </Pressable>
+                <Pressable
+                  style={styles.swapBtn}
+                  onPress={() => void onRemovePiece(pieceSlot(label, item))}
+                  accessibilityLabel={`Remover ${label}`}
+                >
+                  <X size={14} color={colors.ink} />
+                </Pressable>
+              </View>
+            ))}
+            {canAddPiece ? (
+              <Pressable style={styles.addPieceBtn} onPress={() => setAddPieceSheet(true)}>
+                <Plus size={14} color={colors.ink} />
+                <Text style={styles.addPieceText}>Adicionar peça</Text>
               </Pressable>
-              <Pressable
-                style={styles.swapBtn}
-                onPress={() => setSwapSlot(pieceSlot(label, item))}
-                accessibilityLabel={`Trocar ${label}`}
-              >
-                <Shuffle size={14} color={colors.ink} />
-              </Pressable>
-            </View>
-          ))
+            ) : null}
+          </View>
         )}
 
         <Pressable
@@ -247,6 +347,11 @@ export default function TodayLookScreen() {
             <Text style={styles.secondaryText}>Mudar look</Text>
           </Pressable>
         </View>
+
+        <Pressable style={[styles.secondary, { width: "100%", marginTop: 10 }]} onPress={() => setFavoriteSheet(true)}>
+          <Heart size={15} color={colors.ink} />
+          <Text style={styles.secondaryText}>Dos favoritos</Text>
+        </Pressable>
       </ScrollView>
 
       <SwapPieceSheet
@@ -256,11 +361,31 @@ export default function TodayLookScreen() {
         onClose={() => setSwapSlot(null)}
         onSelect={onPickSwap}
       />
+
+      <FavoriteLookSheet
+        visible={favoriteSheet}
+        looks={savedLooks}
+        resolveLook={resolveLook}
+        onClose={() => setFavoriteSheet(false)}
+        onSelect={onPickFavorite}
+      />
+
+      <AddPieceSheet
+        visible={addPieceSheet}
+        wardrobe={wardrobe}
+        outfit={outfit}
+        occasionId={today?.occasionId ?? "trabalho"}
+        formalityId={today?.formalityId ?? "casual_arrumado"}
+        temp={today?.temp}
+        onClose={() => setAddPieceSheet(false)}
+        onSelect={onAddPiece}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 24, paddingBottom: 40 },
   eyebrow: {
@@ -332,6 +457,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  addPieceBtn: {
+    marginTop: 8,
+    marginBottom: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderStyle: "dashed",
+    borderRadius: 16,
+    paddingVertical: 14,
+    backgroundColor: colors.creamWarm,
+  },
+  addPieceText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.ink },
   empty: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   primary: {
     marginTop: 16,
@@ -361,4 +501,5 @@ const styles = StyleSheet.create({
   },
   secondaryTextSaved: { color: colors.goldDark },
   disabled: { opacity: 0.45 },
-});
+  });
+}

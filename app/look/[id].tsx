@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -6,13 +6,16 @@ import { OutfitCardView } from "@/components/OutfitCardView";
 import { getOccasion } from "@/data/types";
 import { outfitPieces } from "@/lib/outfit-engine";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 export default function LookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { savedLooks, resolveLook, deleteLook, incrementUses } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const look = savedLooks.find((l) => l.id === id);
 
   if (!look) {
@@ -77,7 +80,8 @@ export default function LookDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   content: { padding: 24, paddingBottom: 40 },
   title: { fontFamily: fonts.display, fontSize: 26, color: colors.ink },
@@ -94,4 +98,5 @@ const styles = StyleSheet.create({
   delete: { marginTop: 16, alignItems: "center", paddingVertical: 12 },
   deleteText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: "#B91C1C" },
   missing: { fontFamily: fonts.display, fontSize: 20, textAlign: "center", marginTop: 80, color: colors.ink },
-});
+  });
+}

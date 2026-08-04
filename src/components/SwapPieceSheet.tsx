@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Image,
   Modal,
@@ -9,7 +9,8 @@ import {
   View,
 } from "react-native";
 import type { ClothingItem } from "@/data/types";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 interface Props {
@@ -21,6 +22,8 @@ interface Props {
 }
 
 export function SwapPieceSheet({ visible, title, alternatives, onClose, onSelect }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
@@ -56,8 +59,9 @@ export function SwapPieceSheet({ visible, title, alternatives, onClose, onSelect
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.3)" },
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: colors.overlay },
   sheet: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 28,
@@ -97,4 +101,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   doneText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.white },
-});
+  });
+}

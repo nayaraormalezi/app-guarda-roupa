@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import React, { useCallback, useMemo } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
 import {
   useFonts,
   PlayfairDisplay_500Medium,
@@ -18,7 +19,8 @@ import { DMMono_400Regular, DMMono_500Medium } from "@expo-google-fonts/dm-mono"
 import { WardrobeProvider, useWardrobe } from "@/store/wardrobe-store";
 import { AuthProvider, useAuth } from "@/store/auth-store";
 import { SyncBridge } from "@/components/SyncBridge";
-import { colors } from "@/theme/colors";
+import { ThemeProvider, useTheme } from "@/theme/ThemeContext";
+import type { ThemePreference } from "@/data/types";
 import "react-native-reanimated";
 
 export { ErrorBoundary } from "expo-router";
@@ -29,9 +31,36 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
+function ThemedRoot({ children }: { children: React.ReactNode }) {
+  const { preferences, updatePreferences, ready } = useWardrobe();
+  const preference = preferences.theme ?? "system";
+
+  const onPreferenceChange = useCallback(
+    (next: ThemePreference) => {
+      void updatePreferences({ theme: next });
+    },
+    [updatePreferences]
+  );
+
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F9F6F2" }}>
+        <ActivityIndicator color="#C4A97D" />
+      </View>
+    );
+  }
+
+  return (
+    <ThemeProvider preference={preference} onPreferenceChange={onPreferenceChange}>
+      {children}
+    </ThemeProvider>
+  );
+}
+
 function RootNavigator() {
   const { ready, preferences, updatePreferences } = useWardrobe();
   const { user, loading: authLoading } = useAuth();
+  const { colors, scheme } = useTheme();
   const router = useRouter();
   const segments = useSegments();
 
@@ -39,7 +68,6 @@ function RootNavigator() {
     if (ready && !authLoading) SplashScreen.hideAsync();
   }, [ready, authLoading]);
 
-  // Conta logada = onboarding já feito (não pedir de novo)
   useEffect(() => {
     if (!ready || authLoading || !user) return;
     if (!preferences.onboardingComplete) {
@@ -59,6 +87,18 @@ function RootNavigator() {
     }
   }, [ready, authLoading, preferences.onboardingComplete, user, segments, router]);
 
+  const screenOptions = useMemo(
+    () => ({
+      headerShown: false,
+      contentStyle: { backgroundColor: colors.cream },
+      headerTintColor: colors.ink,
+      headerStyle: { backgroundColor: colors.cream },
+      headerTitleStyle: { fontFamily: "PlayfairDisplay_600SemiBold" as const, fontSize: 18, color: colors.ink },
+      headerShadowVisible: false,
+    }),
+    [colors]
+  );
+
   if (!ready || authLoading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.cream }}>
@@ -70,16 +110,8 @@ function RootNavigator() {
   return (
     <>
       <SyncBridge />
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.cream },
-          headerTintColor: colors.ink,
-          headerStyle: { backgroundColor: colors.cream },
-          headerTitleStyle: { fontFamily: "PlayfairDisplay_600SemiBold", fontSize: 18 },
-        }}
-      >
+      <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+      <Stack screenOptions={screenOptions}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="planning" options={{ headerShown: true, title: "Esta semana", headerBackTitle: "Voltar" }} />
@@ -122,7 +154,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <WardrobeProvider>
-        <RootNavigator />
+        <ThemedRoot>
+          <RootNavigator />
+        </ThemedRoot>
       </WardrobeProvider>
     </AuthProvider>
   );

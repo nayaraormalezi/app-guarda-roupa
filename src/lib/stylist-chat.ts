@@ -1,5 +1,6 @@
 import type { ChatMessage, ClothingItem, DayPlan, FormalityId, OccasionId, Outfit } from "@/data/types";
 import { getFormality, getOccasion } from "@/data/types";
+import { dayPlanId } from "@/data/seed";
 import {
   buildOutfit,
   detectFormalityFromText,
@@ -14,6 +15,8 @@ export interface StylistReply {
   outfit?: Outfit;
   occasionId: OccasionId;
   formalityId: FormalityId;
+  /** Day in weekPlan this look should apply to when accepted */
+  planDayId?: string;
 }
 
 function wardrobeDigest(wardrobe: ClothingItem[]): string {
@@ -41,6 +44,7 @@ function resolveOutfitFromIds(
     shoe: find(ids.shoe),
     bag: find(ids.bag),
     outerwear: find(ids.outerwear),
+    accessory: find(ids.accessory),
   };
   const has = outfitPieces(outfit).length > 0;
   return has ? outfit : fallback ?? undefined;
@@ -63,19 +67,28 @@ export async function askStylist(params: {
   history: ChatMessage[];
 }): Promise<StylistReply> {
   const { userText, wardrobe, weekPlan, displayName, city, styleTags, history } = params;
-  const today = weekPlan[0];
-  const tomorrow = weekPlan[1];
+  const todayKey = dayPlanId(new Date());
+  const todayIdx = Math.max(
+    0,
+    weekPlan.findIndex(
+      (d) => d.id === todayKey || d.id.replace(/^day-/, "") === todayKey.replace(/^day-/, "")
+    )
+  );
+  const today = weekPlan[todayIdx] ?? weekPlan[0];
+  const tomorrow = weekPlan[todayIdx + 1] ?? weekPlan[1];
+  const forTomorrow = /amanh/i.test(userText);
+  const planDayId = (forTomorrow ? tomorrow : today)?.id;
   const occasionGuess = detectOccasionFromText(userText);
   const formalityGuess =
     detectFormalityFromText(userText) ?? today?.formalityId ?? getOccasion(occasionGuess).defaultFormality;
-  const temp = /amanh/i.test(userText)
+  const temp = forTomorrow
     ? tomorrow?.temp ?? today?.temp ?? 22
     : today?.temp ?? 22;
 
   const local = buildOutfit(wardrobe, occasionGuess, temp, {
     formality: formalityGuess,
     variant: Date.now() % 7,
-    tempMin: /amanh/i.test(userText) ? tomorrow?.tempMin : today?.tempMin,
+    tempMin: forTomorrow ? tomorrow?.tempMin : today?.tempMin,
   });
 
   if (!preferServerAi() && !resolveGeminiApiKey()) {
@@ -84,6 +97,7 @@ export async function askStylist(params: {
       outfit: local.outfit ?? undefined,
       occasionId: occasionGuess,
       formalityId: formalityGuess,
+      planDayId,
     };
   }
 
@@ -125,7 +139,8 @@ Responda SOMENTE JSON:
     "dress": "id ou null",
     "shoe": "id ou null",
     "bag": "id ou null",
-    "outerwear": "id ou null"
+    "outerwear": "id ou null",
+    "accessory": "id ou null"
   },
   "includeOutfit": true
 }`;
@@ -140,7 +155,7 @@ Responda SOMENTE JSON:
     const pieceIds = (parsed.pieceIds ?? {}) as Partial<Record<keyof Outfit, string>>;
     const rebuilt = buildOutfit(wardrobe, occasionId, temp, {
       formality: formalityId,
-      tempMin: /amanh/i.test(userText) ? tomorrow?.tempMin : today?.tempMin,
+      tempMin: forTomorrow ? tomorrow?.tempMin : today?.tempMin,
     });
     let outfit = includeOutfit
       ? resolveOutfitFromIds(wardrobe, pieceIds, rebuilt.outfit)
@@ -156,13 +171,14 @@ Responda SOMENTE JSON:
       rebuilt.message ||
       "Aqui está uma sugestão com base no seu guarda-roupa.";
 
-    return { text, outfit, occasionId, formalityId };
+    return { text, outfit, occasionId, formalityId, planDayId };
   } catch {
     return {
       text: local.message,
       outfit: local.outfit ?? undefined,
       occasionId: occasionGuess,
       formalityId: formalityGuess,
+      planDayId,
     };
   }
 }

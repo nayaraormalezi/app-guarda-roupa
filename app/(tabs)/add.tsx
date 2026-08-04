@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -34,7 +34,8 @@ import {
 import type { Category, FormalityId, Status } from "@/data/types";
 import { analyzeClothingImage, friendlyVisionError, resolveVisionApiKey } from "@/lib/analyze-clothing";
 import { useWardrobe } from "@/store/wardrobe-store";
-import { colors } from "@/theme/colors";
+import { useTheme } from "@/theme/ThemeContext";
+import type { ThemeColors } from "@/theme/colors";
 import { fonts } from "@/theme/typography";
 
 type Phase = "capture" | "analyzing" | "form" | "saving" | "done";
@@ -42,6 +43,8 @@ type Phase = "capture" | "analyzing" | "form" | "saving" | "done";
 export default function AddScreen() {
   const router = useRouter();
   const { addItem } = useWardrobe();
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [phase, setPhase] = useState<Phase>("capture");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [aiFilled, setAiFilled] = useState(false);
@@ -87,7 +90,9 @@ export default function AddScreen() {
     setAiNote(null);
     try {
       if (!resolveVisionApiKey()) {
-        setAiNote("Análise automática indisponível no momento. Preencha os campos manualmente.");
+        setAiNote(
+          "Análise automática indisponível. Entre na conta (usa IA no servidor) ou configure a chave Gemini."
+        );
         setPhase("form");
         return;
       }
@@ -128,12 +133,12 @@ export default function AddScreen() {
     const result =
       from === "camera"
         ? await ImagePicker.launchCameraAsync({
-            quality: 0.7,
+            quality: 0.45,
             allowsEditing: true,
             aspect: [3, 4],
           })
         : await ImagePicker.launchImageLibraryAsync({
-            quality: 0.7,
+            quality: 0.45,
             allowsEditing: true,
             aspect: [3, 4],
           });
@@ -232,8 +237,22 @@ export default function AddScreen() {
               <Text style={styles.reanalyzeText}>Reanalisar foto com IA</Text>
             </Pressable>
 
-            <Field label="Nome" value={name} onChangeText={setName} placeholder="Ex: Blusa seda preta" />
-            <Field label="Marca" value={brand} onChangeText={setBrand} placeholder="Ex: Theory" />
+            <Field
+              label="Nome"
+              value={name}
+              onChangeText={setName}
+              placeholder="Ex: Blusa seda preta"
+              colors={colors}
+              styles={styles}
+            />
+            <Field
+              label="Marca"
+              value={brand}
+              onChangeText={setBrand}
+              placeholder="Ex: Theory"
+              colors={colors}
+              styles={styles}
+            />
 
             <DropdownField
               label="Categoria"
@@ -323,11 +342,15 @@ function Field({
   value,
   onChangeText,
   placeholder,
+  colors,
+  styles,
 }: {
   label: string;
   value: string;
   onChangeText: (t: string) => void;
   placeholder?: string;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
 }) {
   return (
     <View style={{ marginBottom: 12 }}>
@@ -343,7 +366,8 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ThemeColors) {
+  return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   header: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 8 },
   title: { fontFamily: fonts.display, fontSize: 22, color: colors.ink },
@@ -359,8 +383,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingHorizontal: 24,
   },
-  cameraText: { fontFamily: fonts.body, fontSize: 13, color: "rgba(255,255,255,0.8)", textAlign: "center" },
-  cameraHint: { fontFamily: fonts.mono, fontSize: 10, color: "rgba(255,255,255,0.45)", textAlign: "center" },
+  cameraText: { fontFamily: fonts.body, fontSize: 13, color: colors.onInk, opacity: 0.8, textAlign: "center" },
+  cameraHint: { fontFamily: fonts.mono, fontSize: 10, color: colors.onInk, opacity: 0.45, textAlign: "center" },
   primary: {
     backgroundColor: colors.ink,
     borderRadius: 16,
@@ -402,7 +426,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  aiBannerOk: { backgroundColor: "#F3EBDD" },
+  aiBannerOk: { backgroundColor: colors.creamDark },
   aiBannerText: { flex: 1, fontFamily: fonts.body, fontSize: 12, color: colors.ink, lineHeight: 17 },
   reanalyze: { alignItems: "center", marginBottom: 14 },
   reanalyzeText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.goldDark },
@@ -427,4 +451,5 @@ const styles = StyleSheet.create({
   done: { alignItems: "center", paddingTop: 80, gap: 8 },
   doneTitle: { fontFamily: fonts.display, fontSize: 28, color: colors.ink },
   doneSub: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-});
+  });
+}

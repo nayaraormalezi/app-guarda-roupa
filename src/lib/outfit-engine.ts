@@ -153,9 +153,15 @@ function contextSum(
 }
 
 function outfitList(outfit: Outfit): ClothingItem[] {
-  return [outfit.dress, outfit.top, outfit.bottom, outfit.shoe, outfit.bag, outfit.outerwear].filter(
-    (p): p is ClothingItem => Boolean(p)
-  );
+  return [
+    outfit.dress,
+    outfit.top,
+    outfit.bottom,
+    outfit.shoe,
+    outfit.bag,
+    outfit.outerwear,
+    outfit.accessory,
+  ].filter((p): p is ClothingItem => Boolean(p));
 }
 
 function scoreCombo(
@@ -423,7 +429,7 @@ export function buildOutfit(
   };
 }
 
-export type OutfitSlot = "top" | "bottom" | "dress" | "shoe" | "bag" | "outerwear";
+export type OutfitSlot = "top" | "bottom" | "dress" | "shoe" | "bag" | "outerwear" | "accessory";
 
 const SLOT_CATEGORY: Record<OutfitSlot, ClothingItem["category"][]> = {
   top: ["superiores"],
@@ -432,6 +438,7 @@ const SLOT_CATEGORY: Record<OutfitSlot, ClothingItem["category"][]> = {
   shoe: ["sapatos"],
   bag: ["bolsas"],
   outerwear: ["casacos"],
+  accessory: ["acessorios"],
 };
 
 export function alternativesForSlot(
@@ -513,11 +520,34 @@ export function outfitPieces(outfit: Outfit): { label: string; item: ClothingIte
   if (outfit.outerwear) rows.push({ label: "Casaco", item: outfit.outerwear });
   if (outfit.shoe) rows.push({ label: "Sapato", item: outfit.shoe });
   if (outfit.bag) rows.push({ label: "Bolsa", item: outfit.bag });
+  if (outfit.accessory) rows.push({ label: "Acessório", item: outfit.accessory });
   return rows;
 }
 
 export function outfitPieceIds(outfit: Outfit): string[] {
   return outfitPieces(outfit).map((p) => p.item.id);
+}
+
+/** Slots still empty on this outfit — used to add pieces. */
+export function emptyOutfitSlots(outfit: Outfit | null | undefined): OutfitSlot[] {
+  const o = outfit ?? {};
+  const slots: OutfitSlot[] = [];
+  if (!o.dress) {
+    if (!o.top) slots.push("top");
+    if (!o.bottom) slots.push("bottom");
+    if (!o.top && !o.bottom) slots.push("dress");
+  }
+  if (!o.outerwear) slots.push("outerwear");
+  if (!o.shoe) slots.push("shoe");
+  if (!o.bag) slots.push("bag");
+  if (!o.accessory) slots.push("accessory");
+  return slots;
+}
+
+export function removeOutfitSlot(outfit: Outfit, slot: OutfitSlot): Outfit {
+  const copy: Outfit = { ...outfit };
+  delete copy[slot];
+  return copy;
 }
 
 export function slotLabel(slot: OutfitSlot): string {
@@ -528,6 +558,7 @@ export function slotLabel(slot: OutfitSlot): string {
     shoe: "Sapato",
     bag: "Bolsa",
     outerwear: "Casaco",
+    accessory: "Acessório",
   };
   return map[slot];
 }
